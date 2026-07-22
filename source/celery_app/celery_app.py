@@ -1,0 +1,37 @@
+from celery import Celery
+from source.core.config import settings
+import os
+from source.core.logger import default_logger
+
+app = Celery("source.celery_app.celery_app",
+             broker=settings.redis.url,
+             backend=settings.redis.url,
+             include=["source.tasks.email_task",
+                      "source.tasks.views_count_task"],
+             broker_connection_retry_on_startup=True)
+
+"""
+Аргументы:
+- название модуля (полный путь) где лежит этот объект app
+- адрес для подключения к брокеру. тут это "redis://redis:6379/0"
+- место где будет сохранен результат выполнения задачи. тут указан тоже Redis
+- список модулей с нашими задачами (в этом пример одна задача project/source/tasks/email_task.py)
+- последний параметр нужен просто чтобы не было предупреждений в консоли??
+"""
+
+# Если режим TEST или CELERY_TASK_ALWAYS_EAGER=True, задачи выполняются синхронно
+if os.getenv("MODE") == "TEST" or os.getenv("CELERY_TASK_ALWAYS_EAGER") == "True":
+    default_logger.debug("setting celery task eager = True")
+    app.conf.update(
+        task_always_eager=True,
+        task_eager_propagates=True, # Бросает исключение прямо в тесте, если задача упала
+    )
+
+else:
+    # делаем периодичной задачу по обновлению views_count в постах
+    app.conf.beat_schedule = {
+        "sync-post-views": {
+            "task": "source.tasks.views_count_task.update_views_count",
+            "schedule": 300,   # каждые 5 минут
+        },
+    }

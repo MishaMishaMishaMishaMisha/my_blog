@@ -1,0 +1,47 @@
+from pydantic import BaseModel, Field, EmailStr
+from source.core.types import RoleEnum
+from uuid import UUID
+from datetime import datetime
+
+
+# adding new user
+class UserAddDTO(BaseModel):
+    username: str = Field(min_length=5, max_length=20)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=50)
+    role: RoleEnum = RoleEnum.USER
+    is_active: bool = True
+    
+# authenticating user
+class UserLoginDTO(BaseModel):
+    login: str = Field(..., description="username or email")
+    password: str
+    
+# updating user
+class UserPatchDTO(BaseModel):
+    username: str | None = Field(default=None, min_length=5, max_length=20)
+    email: EmailStr | None = Field(default=None)
+    password: str | None = Field(default=None, min_length=8, max_length=50)
+    
+class UserEmailDTO(BaseModel):
+    email: EmailStr
+    
+class UserResetPasswordDTO(BaseModel):
+    token: str
+    new_password: str
+
+
+# response
+class UserDTO(BaseModel):
+    id: UUID
+    username: str
+    email: EmailStr
+    role: RoleEnum
+    is_active: bool
+    is_verified: bool
+    last_login: datetime
+    last_seen: datetime
+    
+    model_config = {'from_attributes': True}
+    
+    

@@ -1,0 +1,20 @@
+services:
+
+  postgres_test:
+    image: postgres:17
+    container_name: testpg-container
+
+    environment:
+      POSTGRES_DB: mytestdockerpostgredb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+
+    ports:
+      - "5433:5432" # другой порт для тестируемой базы
+
+
+  redis_test:
+    image: redis
+
+    ports:
+      - "6380:6379" # другой порт для тестового redis

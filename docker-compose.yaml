@@ -1,0 +1,94 @@
+services:
+
+  my_app:
+    build: .
+
+    container_name: fastapi-app
+
+    working_dir: /app
+
+    env_file:
+      - .env
+
+    volumes:
+      - .:/app
+
+    ports:
+      - "8000:8000"
+
+    command: python -m source.main --uvicorn_reload
+
+    depends_on:
+      - postgres
+      - redis
+
+
+  postgres:
+    image: postgres:17
+    container_name: pg-container
+
+    env_file:
+      - .env
+
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+
+    ports:
+      - "${DB_PORT}:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+
+  redis:
+    image: redis
+
+    env_file:
+      - .env
+
+    ports:
+      - "${REDIS_PORT}:6379"
+
+
+  celery_worker:
+    build: .
+
+    working_dir: /app
+
+    command: celery -A source.celery_app.celery_app worker --loglevel=info
+
+    volumes:
+      - .:/app
+
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+    depends_on:
+      - redis
+      - postgres
+
+  # для периодичных задач
+  celery_beat:
+    build: .
+
+    working_dir: /app
+
+    command: celery -A source.celery_app.celery_app beat --loglevel=info
+
+    volumes:
+      - .:/app
+
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+    depends_on:
+      - redis
+      - postgres
+
+
+volumes:
+  postgres_data:

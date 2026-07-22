@@ -1,0 +1,60 @@
+import logging
+
+
+class SimpleLoggerFactory:
+    DEFAULT_FMT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    DEFAULT_DATEFMT = "%d.%m.%y %H:%M:%S"
+
+    def __init__(
+        self,
+        name: str | None = None,
+        level: int = logging.DEBUG,
+        handler: logging.Handler | None = None,
+        formatter: logging.Formatter | None = None,
+        fmt: str | None = None,
+        log_filter: logging.Filter | None = None,
+    ):
+        self.logger = logging.getLogger(name)
+
+        # Чтобы не создавать дубликаты handler'ов
+        if not self.logger.handlers:
+            self.logger.setLevel(level)
+
+            if handler is None:
+                handler = logging.StreamHandler()
+
+            if formatter is None:
+                formatter = logging.Formatter(fmt or self.DEFAULT_FMT, datefmt=self.DEFAULT_DATEFMT)
+
+            handler.setFormatter(formatter)
+
+            if log_filter is not None:
+                handler.addFilter(log_filter)
+
+            self.logger.addHandler(handler)
+
+    def add_handler(self, handler: logging.Handler) -> None:
+        self.logger.addHandler(handler)
+
+    def add_formatter(self, formatter: logging.Formatter, handler: logging.Handler | None = None) -> None:
+        if handler:
+            handler.setFormatter(formatter)
+        else:
+            for h in self.logger.handlers:
+                h.setFormatter(formatter)
+
+    def set_format(self, fmt: str, datefmt: str = DEFAULT_DATEFMT) -> None:
+        formatter = logging.Formatter(fmt, datefmt=datefmt)
+        self.add_formatter(formatter)
+
+    def add_filter(self, log_filter: logging.Filter) -> None:
+        for handler in self.logger.handlers:
+            handler.addFilter(log_filter)
+
+    def get_logger(self) -> logging.Logger:
+        return self.logger
+    
+    
+
+# level DEBUG, only stream handler
+default_logger = SimpleLoggerFactory(name="default-logger").get_logger()
