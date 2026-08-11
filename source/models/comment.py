@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import text, ForeignKey, String
+from sqlalchemy import text, ForeignKey, String, DateTime
 from source.models.base import BaseORMModel
 from source.core.types import str_120, TypeReactionEnum
 from datetime import datetime
@@ -32,11 +32,13 @@ class CommentModel(BaseORMModel):
     body: Mapped[str] = mapped_column(String(2000))
     
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"))
+        DateTime(timezone=True),
+        server_default=text("now()"))
     
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"),
-        server_onupdate=text("TIMEZONE('utc', now())"))
+        DateTime(timezone=True),
+        server_default=text("now()"),
+        server_onupdate=text("now()"))
     
 
     # id комментария на который отвечает этот комментарий
@@ -89,5 +91,10 @@ class CommentModel(BaseORMModel):
     @property
     def reactions(self) -> dict[TypeReactionEnum, int]:
         from collections import Counter
-        return dict(Counter(r.reaction_type for r in self.reactions_list))
+
+        counts = {reaction_type: 0 for reaction_type in TypeReactionEnum}
+        actual_counts = Counter(r.reaction_type for r in self.reactions_list)
+        counts.update(actual_counts)
+        
+        return counts
     

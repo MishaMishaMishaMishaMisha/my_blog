@@ -8,7 +8,9 @@ from source.core.exceptions import (UsernameAlreadyExsistsException,
                                     EmailAlreadyExsistsException,
                                     InvalidTokenException,
                                     UserInactiveException,
-                                    UserAlreadyVerifiedException)
+                                    UserAlreadyVerifiedException,
+                                    UserAlreadyCreatedVerifyLink,
+                                    UserAlreadyCreatedResetpasswordLink)
 from fastapi import HTTPException
 from source.dependencies.auth import get_auth_service
 from source.core.logger import default_logger
@@ -24,13 +26,24 @@ from typing import Annotated
 from fastapi import Query
 from source.tasks.email_task import send_message_to_email
 from source.services.verify_user import VerifyUserService
+from source.core.utils import custom_rate_limit_callback
+from fastapi import Body
+from pydantic import EmailStr
+from source.dependencies.rate_limit import (login_limiter,
+                                            logout_limiter,
+                                            refresh_token_limiter,
+                                            resend_verify_email_limiter,
+                                            verify_email_limiter,
+                                            forgot_password_email_limiter,
+                                            reset_password_limiter)
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 # отдадим access токен в теле ответа, а refresh токен в куках
-@router.post("/login")
+@router.post("/login", 
+             dependencies=[Depends(login_limiter)])
 async def login_user(#form_data: UserLoginDTO,
                      response: Response,
                      form_data: OAuth2PasswordRequestForm = Depends(), # данные должны прийти не json, а data
@@ -55,14 +68,22 @@ async def login_user(#form_data: UserLoginDTO,
     except InvalidCredentialsException as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-@router.post("/logout")
-async def logout_user(response: Response) -> dict:
+@router.post("/logout", 
+             dependencies=[Depends(logout_limiter)])
+async def logout_user(request: Request,
+                      response: Response) -> dict:
+    
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        return {"message": "Refresh token already deleted"}
+    
     response.delete_cookie(key="refresh_token")
     return {"message": "Logged out successfully"}
 
 
 # update access token
-@router.post("/refresh")
+@router.post("/refresh", 
+             dependencies=[Depends(refresh_token_limiter)])
 async def update_token(request: Request,
                        response: Response,
                        auth_service: AuthService = Depends(get_auth_service)) -> dict:
@@ -95,7 +116,8 @@ async def update_token(request: Request,
 
 
 
-@router.post("/resend-verification-email")
+@router.post("/resend-verification-email", 
+             dependencies=[Depends(resend_verify_email_limiter)])
 async def resend_verify_email(user: UserModel = Depends(get_user_from_token),
                               verify_user_service: VerifyUserService = Depends(get_verify_user_service)
                               ) -> dict:
@@ -105,22 +127,19 @@ async def resend_verify_email(user: UserModel = Depends(get_user_from_token),
     if user.is_verified:
         return {"message": "your account already verified"}
     
-    # # add celery later
-    # link = email_service.create_verify_link(user.id)
-    # msg = email_service.prepareEmailMsg(email_receiver=user.email,
-    #                                     message_subject="Link for verification account",
-    #                                     message_body=link)
-    # email_service.sendEmail(msg)
+    try:
+        link = await verify_user_service.create_verify_link(user.id)
+        send_message_to_email.delay(user_email=user.email, 
+                                            msg_subject="Link for verification account", 
+                                            msg_body=link)
+        
+        return {"message": "verification link sent to email"}
     
-    # add task to celery
-    link = verify_user_service.create_verify_link(user.id)
-    send_message_to_email.delay(user_email=user.email, 
-                                        msg_subject="Link for verification account", 
-                                        msg_body=link)
-    
-    return {"message": "verification link sent to email"}
+    except UserAlreadyCreatedVerifyLink as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/verify-email")
+@router.get("/verify-email", 
+            dependencies=[Depends(verify_email_limiter)])
 async def verify_user(token: Annotated[str, Query(title="verification token")],
                       verify_user_service: VerifyUserService = Depends(get_verify_user_service)
                       ) -> dict:
@@ -142,42 +161,43 @@ async def verify_user(token: Annotated[str, Query(title="verification token")],
     except UserInactiveException as e:
         raise HTTPException(status_code=401, detail=str(e))
     
-    except UserAlreadyVerifiedException as e:
+    except (UserAlreadyVerifiedException, UserAlreadyCreatedVerifyLink) as e:
         raise HTTPException(status_code=401, detail=str(e))
     
     
 
 #POST /auth/forgot-password
-@router.post("/forgot-password")
-async def forgot_password(email_data: UserEmailDTO,
+@router.post("/forgot-password", 
+             dependencies=[Depends(forgot_password_email_limiter)])
+async def forgot_password(#user_email: Annotated[EmailStr, Body(title="user email")],
+                          email_data: UserEmailDTO,
                           verify_user_service: VerifyUserService = Depends(get_verify_user_service)
                           ) -> dict:
     
     default_logger.info("User forgot password")
     
-    user = await verify_user_service.find_user_by_email(email_data.email)
+    user = await verify_user_service.find_user_by_email(email_data.user_email)
     if not user:
         raise HTTPException(status_code=404, detail="email not found")
     
-    # # add celery later
-    # link = email_service.create_resetPassword_link(user.id)
-    # msg = email_service.prepareEmailMsg(email_receiver=user.email,
-    #                                     message_subject="Link for resetting password",
-    #                                     message_body=link)
-    # email_service.sendEmail(msg)
-    
-    # add task to celery
-    default_logger.info("User forgot password: sending resetting password link to email")
-    link = verify_user_service.create_resetPassword_link(user.id)
-    send_message_to_email.delay(user_email=user.email, 
-                                        msg_subject="Link for resetting password", 
-                                        msg_body=link)
+
+    try:
+        default_logger.info("User forgot password: sending resetting password link to email")
+        link = await verify_user_service.create_resetPassword_link(user.id)
+    except UserAlreadyCreatedResetpasswordLink as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    else:
+        # add task to celery
+        send_message_to_email.delay(user_email=user.email, 
+                                    msg_subject="Link for resetting password", 
+                                    msg_body=link)
     
     return {"message": "resetting password link send to email"}
 
 
 #POST /auth/reset-password
-@router.post("/reset-password")
+@router.post("/reset-password", 
+             dependencies=[Depends(reset_password_limiter)])
 async def reset_password(password_data: UserResetPasswordDTO,
                          verify_user_service: VerifyUserService = Depends(get_verify_user_service)
                          ) -> dict:
@@ -185,9 +205,9 @@ async def reset_password(password_data: UserResetPasswordDTO,
     try:
         default_logger.info("User resetting password: TRYING")
         await verify_user_service.reset_password(password_data.token, password_data.new_password)
-        default_logger.info("ser resetting password: password changed")
+        default_logger.info("User resetting password: password changed")
         
-        return {"message": "user changed password successfully"}
+        return {"message": "User changed password successfully"}
     
     except InvalidTokenException as e:
         raise HTTPException(status_code=401, detail=str(e))

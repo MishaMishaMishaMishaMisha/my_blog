@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import text, ForeignKey
+from sqlalchemy import text, ForeignKey, DateTime
 from source.models.base import BaseORMModel
 import uuid
 from datetime import datetime
@@ -30,7 +30,8 @@ class AttachmentMediaModel(BaseORMModel):
                                               index=True,
                                               nullable=True)
     
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), 
+                                               index=True)
 
     filename: Mapped[str] # не url. пример cat.png
     
@@ -43,7 +44,8 @@ class AttachmentMediaModel(BaseORMModel):
     size: Mapped[int]
     
     uploaded_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"))
+            DateTime(timezone=True),
+            server_default=text("now()"))
     
     # сразу после загрузки файл становится временным
     # когда будет готов пост или комментарий то поле меняется на False

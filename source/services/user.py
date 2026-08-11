@@ -1,7 +1,12 @@
 from source.repositories.user import UserRepository
 from source.models.user import UserModel
-from source.schemas.user import UserAddDTO, UserPatchDTO
-from source.core.exceptions import UsernameAlreadyExsistsException, EmailAlreadyExsistsException
+from source.models.post import PostModel
+from source.models.comment import CommentModel
+from source.schemas.user import UserAddDTO, UserPatchDTO, UserPublicProfileDTO
+from source.schemas.post import PostPreviewDTO, PostListDTO
+from source.core.exceptions import (UsernameAlreadyExsistsException, 
+                                    EmailAlreadyExsistsException,
+                                    UserNotFoundException)
 from source.core.logger import default_logger
 from source.core.security import hash_password
 from uuid import UUID
@@ -9,8 +14,9 @@ from typing import Sequence, Set
 from enum import Enum
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.orm.interfaces import ORMOption
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from source.schemas.user import UserDTO
+from source.cache.redis_backend import RedisBackend
 
 
 class UserLoadRelations(str, Enum):
@@ -29,39 +35,57 @@ class UserService:
         UserLoadRelations.REACTIONS_ON_COMMENTS: selectinload(UserModel.user_reactions_on_comments)
     }
     
-    def __init__(self, user_repo: UserRepository):
+    def __init__(self, user_repo: UserRepository, cache_redis: RedisBackend):
         self.user_repo = user_repo
+        self.cache_redis = cache_redis
+        
+        self.cache_user_key = "user-profile:{username}"
+        self.cache_user_ttl = 300 # 5 minutes
         
     async def create_new_user(self, new_user: UserAddDTO) -> UserDTO:
         default_logger.debug("Adding new user: CHECKING IF USERNAME IN DB")
         
-        existing_username = await self.user_repo.get_user_by(username=new_user.username)
-        if existing_username:
-            default_logger.error("Adding new user: ERROR. USERNAME IN DB")
-            raise UsernameAlreadyExsistsException("such username already in db")
-        
-        existing_email = await self.user_repo.get_user_by(email=new_user.email)
-        if existing_email:
-            default_logger.error("Adding new user: ERROR. EMAIL IN DB")
-            raise EmailAlreadyExsistsException("such email already in db")
-
         hashed_password = hash_password(new_user.password)
-        
+
         db_user = await self.user_repo.add_user(new_user, hashed_password)
+
         return UserDTO.model_validate(db_user)
     
     async def delete_user(self, user_id: UUID) -> None:
-        await self.user_repo.delete_user(user_id)
+        username = await self.user_repo.delete_user(user_id)
         
-    async def get_user(self, user_id: UUID,
-                       include: Set[UserLoadRelations] | None = None) -> UserDTO:
+        default_logger.debug("deleting user from cache")
+        await self.cache_redis.delete(key=self.cache_user_key.format(username=username))
+        
+    async def get_user_profile(self, username: str) -> UserPublicProfileDTO:
+        
+        default_logger.debug("Getting user profile: checking cache")
+        # проверяем кеш
+        user_cached = await self.cache_redis.get(key=self.cache_user_key.format(username=username))
+        if user_cached:
+            default_logger.debug("Getting user profile: get user from cache")
+            return UserPublicProfileDTO.model_validate(user_cached)
+        
+        default_logger.debug("Getting user profile: try to find user in db")
+        user_data = await self.user_repo.get_user_profile(username)
+        
 
-        options: Sequence[ORMOption] | None = None
-        if include:
-            options = self.add_loading_options(include)
+        default_logger.debug("Getting user profile: user found. validating...")
+        user = (UserPublicProfileDTO
+               .model_validate(user_data[0])
+               .model_copy(update={"posts_count": user_data[1]})
+               .model_copy(update={"comments_count": user_data[2]}))
         
-        user_db = await self.user_repo.get_user(user_id, options)
-        return UserDTO.model_validate(user_db)
+        default_logger.debug("Getting user profile: adding user to cache")
+        # добавляем в кеш на 5 минут
+        await self.cache_redis.set(key=self.cache_user_key.format(username=username),
+                                   value=user.model_dump(mode="json"), 
+                                   ttl_seconds=self.cache_user_ttl)
+        
+        return user
+    
+    async def get_user(self, user_id: UUID) -> UserModel:
+        return await self.user_repo.get_user(user_id)
         
     async def get_users(self, limit: int, offset: int, 
                         include: Set[UserLoadRelations] | None = None) -> Sequence[UserDTO]:
@@ -82,6 +106,10 @@ class UserService:
             user_data.password = hashed_password
         
         user_db = await self.user_repo.update_user(user_id, user_data)
+        
+        default_logger.debug("Deleting user from cache")
+        await self.cache_redis.delete(key=self.cache_user_key.format(username=user_db.username))
+        
         return UserDTO.model_validate(user_db)
     
     async def find_user_by_name(self, seacrhing_name: str,
@@ -95,7 +123,8 @@ class UserService:
         return [UserDTO.model_validate(db_user) for db_user in db_users]
     
     async def set_last_seen(self, user: UserModel) -> None:
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
+        #now = datetime.now()
         # обновляем не чаще чем через 5 минут
         # чтобы не делать commit на каждой операции пользователя
         if (user.last_seen is None or now - user.last_seen > timedelta(minutes=5)):

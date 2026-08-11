@@ -13,9 +13,14 @@ class MediaFileRepository:
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
         
-    async def add_file(self, mediafile: AttachmentMediaModel) -> None:
-        self.db_session.add(mediafile)
+    async def make_commit(self):
         await self.db_session.commit()
+        
+    async def make_rollback(self) -> None:
+        await self.db_session.rollback()
+        
+    def add_file(self, mediafile: AttachmentMediaModel) -> None:
+        self.db_session.add(mediafile)
     
     async def delete_file(self, file_id: UUID) -> str:
         query = (delete(AttachmentMediaModel)
@@ -26,7 +31,7 @@ class MediaFileRepository:
         if deleted_filename is None:
             default_logger.error(f"Deleting file. Error. File not found")
             raise FileNotFoundException("File not found")
-        await self.db_session.commit()
+        #await self.db_session.commit()
         default_logger.debug("Deleting file: file info deleted from db")
         return deleted_filename
     

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import text, String, Enum
+from sqlalchemy import text, String, Enum, DateTime
 from source.models.base import BaseORMModel
 from source.core.types import str_20, RoleEnum
 from datetime import datetime
@@ -53,20 +53,24 @@ class UserModel(BaseORMModel):
 
     # последний успешный вход в аккаунт
     last_login: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())")
+        DateTime(timezone=True),
+        server_default=text("now()")
     )
     
     # последняя активность (операции где нужна авторизация)
     last_seen: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())")
+        DateTime(timezone=True),
+        server_default=text("now()")
     )
     
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"))
+        DateTime(timezone=True),
+        server_default=text("now()"))
     
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"),
-        server_onupdate=text("TIMEZONE('utc', now())"))
+        DateTime(timezone=True),
+        server_default=text("now()"),
+        server_onupdate=text("now()"))
     
     
     """Связи"""

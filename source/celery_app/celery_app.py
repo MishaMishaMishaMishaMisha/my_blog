@@ -7,7 +7,8 @@ app = Celery("source.celery_app.celery_app",
              broker=settings.redis.url,
              backend=settings.redis.url,
              include=["source.tasks.email_task",
-                      "source.tasks.views_count_task"],
+                      "source.tasks.views_count_task",
+                      "source.tasks.delete_mediafiles_task"],
              broker_connection_retry_on_startup=True)
 
 """
@@ -28,10 +29,26 @@ if os.getenv("MODE") == "TEST" or os.getenv("CELERY_TASK_ALWAYS_EAGER") == "True
     )
 
 else:
-    # делаем периодичной задачу по обновлению views_count в постах
+    
+    default_logger.debug("setting schedule for tasks")
+    
+    # делаем периодичными задачи:
+    # по обновлению views_count в постах - каждые 5 минут
+    # по удалению неиспользованных файлов - раз в день
+    # по синхронизации файлов в хранилище и бд - раз в день
     app.conf.beat_schedule = {
         "sync-post-views": {
             "task": "source.tasks.views_count_task.update_views_count",
-            "schedule": 300,   # каждые 5 минут
+            "schedule": 300,
+        },
+        "delete-temp-files": {
+            "task": "source.tasks.delete_mediafiles_task.delete_temp_files",
+            "schedule": 86400,
+        },
+        "sync-files": {
+            "task": "source.tasks.delete_mediafiles_task.sync_Files_in_Storage_and_in_DB",
+            "schedule": 86400,
         },
     }
+    
+    

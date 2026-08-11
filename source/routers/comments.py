@@ -8,12 +8,18 @@ from source.dependencies.comment import get_comment_service
 from source.core.exceptions import PostNotFoundException, CommentNotFoundException, FileNotFoundException
 from fastapi import HTTPException
 from source.core.logger import default_logger
-from source.dependencies.auth import get_user_from_token
+from source.dependencies.auth import get_user_from_token, get_user_or_none_from_token
 from source.models.user import UserModel
 from typing import Sequence
 from fastapi import Query, Path
 from source.core.types import POST_ID_TYPE, COMMENT_ID_TYPE, LIMIT_QUERY, OFFSET_QUERY, TypeReactionEnum, MAX_ATTACHMENTS_IN_COMMENT
 from source.services.comment import CommentLoadRelations
+from source.dependencies.rate_limit import (create_comment_limiter,
+                                            get_root_comments_limiter,
+                                            get_root_replies_limiter,
+                                            react_to_comment_limiter,
+                                            delete_comment_limiter,
+                                            update_comment_limiter)
 
 
 router = APIRouter(tags=["Comments"])
@@ -22,7 +28,9 @@ router = APIRouter(tags=["Comments"])
 
 
 # create comment on post
-@router.post("/posts/{post_id}/comments", response_model=CommentWithoutRelationsDTO)
+@router.post("/posts/{post_id}/comments", 
+             response_model=CommentWithoutRelationsDTO,
+             dependencies=[Depends(create_comment_limiter)])
 async def create_comment(
                 post_id: POST_ID_TYPE,
                 new_comment: CommentAddDTO, 
@@ -32,16 +40,17 @@ async def create_comment(
     try:
         default_logger.info("Adding new comment: TRYING")
         
-        if post_id != new_comment.post_id:
-            default_logger.error("Adding new comment: Error. post_id != comment.post_id")
-            raise HTTPException(status_code=403, detail="You cannot add comment under other post")
+        if not user.is_verified:
+            default_logger.info("User is not verified")
+            raise HTTPException(status_code=403, detail="Please, verify your email to do this")
         
         if new_comment.files_id and len(new_comment.files_id) > MAX_ATTACHMENTS_IN_COMMENT:
             default_logger.error("Adding new comment: Error. User attach to many files in comment")
             e = f"You cannot attach in comment more than {MAX_ATTACHMENTS_IN_COMMENT} files"
             raise HTTPException(status_code=403, detail=e)
         
-        comment = await comment_service.create_new_comment(new_comment, user.id)
+        comment = await comment_service.create_new_comment(new_comment, user.id, post_id)
+        comment.author_username = user.username
         default_logger.info("Adding new comment: COMMENT ADDED")
         return comment
     
@@ -55,17 +64,22 @@ async def create_comment(
     
     
 # get post' root comments
-@router.get("/posts/{post_id}/comments", response_model=Sequence[CommentWithReactionsDTO])
+@router.get("/posts/{post_id}/comments", 
+            response_model=Sequence[CommentWithReactionsDTO],
+            dependencies=[Depends(get_root_comments_limiter)])
 async def get_post_root_comments(
             post_id: POST_ID_TYPE,
             limit: LIMIT_QUERY = 10,
             offset: OFFSET_QUERY = 0,
+            user: UserModel | None = Depends(get_user_or_none_from_token),
             post_service: CommentService = Depends(get_comment_service)) -> Sequence[CommentWithReactionsDTO]:
     
     try:
         default_logger.info("Getting comment of post from db: trying")
         
-        comments = await post_service.get_all_post_root_comments(post_id, limit, offset, 
+        user_id = user.id if user else None
+        
+        comments = await post_service.get_all_post_root_comments(user_id, post_id, limit, offset, 
                                                                  include={CommentLoadRelations.REACTIONS,
                                                                           CommentLoadRelations.ATTACHMENTS})
             
@@ -76,36 +90,49 @@ async def get_post_root_comments(
         raise HTTPException(status_code=404, detail=str(e))
 
 # add reaction to comment
-@router.post("/comments/react")
-async def add_reaction(comment_reaction: CommentAddReactionDTO,
-                       user: UserModel = Depends(get_user_from_token), 
-                       comment_service: CommentService = Depends(get_comment_service)) -> dict:
+@router.post("/comments/react",
+             dependencies=[Depends(react_to_comment_limiter)])
+async def add_reaction(
+        comment_reaction: CommentAddReactionDTO,
+        user: UserModel = Depends(get_user_from_token), 
+        comment_service: CommentService = Depends(get_comment_service)
+        ) -> dict[str, TypeReactionEnum | None]:
     
     try:
         
         default_logger.info("Adding reaction to comment: trying")
-        await comment_service.add_reaction_to_comment(comment_reaction, user.id)
-        return {"message": "reaction added"}
+        res = await comment_service.add_reaction_to_comment(comment_reaction, user.id)
+        
+        return {"user_reaction": res[1]}
     
     except CommentNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
     
 
 # delete comment
-@router.delete("/comments/{comment_id}")
+@router.delete("/comments/{comment_id}",
+               dependencies=[Depends(delete_comment_limiter)])
 async def delete_comment(comment_id: COMMENT_ID_TYPE,
                          user: UserModel = Depends(get_user_from_token), 
                          comment_service: CommentService = Depends(get_comment_service)) -> dict:
     try:
         default_logger.info("Try to delete comment")
+        
+        if not user.is_verified:
+            default_logger.info("User is not verified")
+            raise HTTPException(status_code=403, detail="Please, verify your email to do this")
+        
         await comment_service.delete_comment(comment_id, user.id)
+        default_logger.info("Comment deleted") 
         return {"message": "post deleted from db"}
     
     except CommentNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 # update comment
-@router.patch("/comments/{comment_id}", response_model=CommentWithoutRelationsDTO)
+@router.patch("/comments/{comment_id}", 
+              response_model=CommentWithoutRelationsDTO,
+              dependencies=[Depends(update_comment_limiter)])
 async def update_post(
             comment_id: COMMENT_ID_TYPE,
             comment_data: CommentPatchDTO,
@@ -114,6 +141,10 @@ async def update_post(
     
     try:
         default_logger.info("Updating comment: Trying")
+        
+        if not user.is_verified:
+            default_logger.info("User is not verified")
+            raise HTTPException(status_code=403, detail="Please, verify your email to do this")
         
         return await comment_service.update_comment(comment_id, user.id, comment_data)
     
@@ -154,17 +185,23 @@ async def get_comment_reactions(
 
 
 # get comment root replies
-@router.get("/comments/{comment_id}/replies", response_model=list[CommentWithReactionsDTO])
+@router.get("/comments/{comment_id}/replies", 
+            response_model=Sequence[CommentWithReactionsDTO],
+            dependencies=[Depends(get_root_replies_limiter)])
 async def get_comment_root_replies(
     comment_id:COMMENT_ID_TYPE, 
     limit: LIMIT_QUERY = 10,
     offset: OFFSET_QUERY = 0,
-    comment_service: CommentService = Depends(get_comment_service)) -> list[CommentWithReactionsDTO]:
+    user: UserModel | None = Depends(get_user_or_none_from_token),
+    comment_service: CommentService = Depends(get_comment_service)) -> Sequence[CommentWithReactionsDTO]:
 
     try:
         
         default_logger.info(f"Getting replies of comment={comment_id}")
-        replies = await comment_service.get_comment_root_replies(comment_id, limit, offset,
+        
+        user_id = user.id if user else None
+        
+        replies = await comment_service.get_comment_root_replies(user_id, comment_id, limit, offset,
                                                                  include={CommentLoadRelations.ATTACHMENTS,
                                                                           CommentLoadRelations.REACTIONS})
             

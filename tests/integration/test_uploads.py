@@ -7,6 +7,7 @@ from source.dependencies.mediafile import get_mediafile_service
 from source.services.mediafile import MediaFileService
 from source.repositories.mediafile import MediaFileRepository
 from source.services.storage.localStorage import LocalStorage
+from source.dependencies.rate_limit import upload_limiter
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -16,14 +17,15 @@ class TestUploads:
                               async_client: AsyncClient,
                               tmp_path: Path,
                               db_session,
-                              authenticated_user):
+                              authenticated_user,
+                              test_app):
         
         # override storage path
         def override_get_mediafile_service():
             storage = LocalStorage(tmp_path) 
             return MediaFileService(MediaFileRepository(db_session), storage)
         
-        app.dependency_overrides[get_mediafile_service] = override_get_mediafile_service
+        test_app.dependency_overrides[get_mediafile_service] = override_get_mediafile_service
 
         # test file
         file_data = b"Hello, world! This is a test file."
@@ -31,7 +33,7 @@ class TestUploads:
         
         # request
         response = await async_client.post(
-            "/upload/",
+            "/upload/one-file",
             files={"file": (file_name, io.BytesIO(file_data), "image/png")},
             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"}
         )
@@ -41,7 +43,7 @@ class TestUploads:
         
         # check if file in storage
         uploaded_files = list(tmp_path.glob("*_test_image.png"))
-        assert len(uploaded_files) == 1
+        assert len(uploaded_files) == 1 # не проходит этот тест. здесь 0 а должно быть 1
         assert uploaded_files[0].read_bytes() == file_data
 
         # clear override

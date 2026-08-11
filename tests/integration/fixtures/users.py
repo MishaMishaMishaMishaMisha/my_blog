@@ -12,12 +12,11 @@ def user_json():
         "username": get_random_string(10),
         "email": f"{get_random_string(10)}@gmail.com",
         "password": get_random_string(15),
-        "role": "user",
-        "is_active": "true"
     }
     
 
 # просто отдает UserModel
+# можно создать user или admin
 # использование
 # user = user_factory()
 # admin = user_factory(role=RoleEnum.ADMIN, username="admin")
@@ -30,8 +29,6 @@ def user_factory():
             "username": get_random_string(10),
             "email": f"{get_random_string(10)}@gmail.com",
             "password_hash": get_random_string(20),
-            "role": RoleEnum.USER,
-            "is_active": True,
         }
 
         defaults.update(kwargs)
@@ -84,8 +81,7 @@ async def create_users(count: int = 1, **kwargs) -> list[UserModel]:
             "username": get_random_string(10),
             "email": f"{get_random_string(10)}@gmail.com",
             "password_hash": get_random_string(20),
-            "role": RoleEnum.USER,
-            "is_active": True}
+            "role": RoleEnum.USER}
 
         # если были переданы другие значения для полей
         user_model.update(kwargs)

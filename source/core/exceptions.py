@@ -1,5 +1,8 @@
 
 
+class CommittingException(Exception):
+    pass
+
 class AuthException(Exception):
     """Базовое исключение для авторизации"""
     pass
@@ -22,7 +25,16 @@ class UserNotFoundException(UserException):
 class UserInactiveException(UserException):
     pass
 
+class UserNotVerifiedException(UserException):
+    pass
+
 class UserAlreadyVerifiedException(UserException):
+    pass
+
+class UserAlreadyCreatedVerifyLink(UserException):
+    pass
+
+class UserAlreadyCreatedResetpasswordLink(UserException):
     pass
 
 class UsernameAlreadyExsistsException(UserException):
@@ -38,6 +50,15 @@ class PostException(Exception):
     pass
 
 class PostNotFoundException(PostException):
+    pass
+
+
+
+class TagException(Exception):
+    """Базовое искоючение для тегов"""
+    pass
+
+class TagNotFoundException(TagException):
     pass
 
 

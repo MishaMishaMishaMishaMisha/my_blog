@@ -24,29 +24,27 @@ def get_auth_service(db_session: AsyncSession = Depends(get_db)) -> AuthService:
 
 # эта штука автоматически будет доставать токен из заголовка authtorization: bearer
 # параметр tokenUrl нужен только для удобной авторизации в swagger в документации
-oauth2_schem = OAuth2PasswordBearer(tokenUrl="auth/login")
+# auto_error=False чтобы этот метод сам не вызывал HttpException если токена нету в заголовке
+oauth2_schem = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
-async def get_user_from_token(token: str = Depends(oauth2_schem),
-                        user_service: UserService = Depends(get_user_service)) -> UserModel:
+async def get_user_or_none_from_token(token: str = Depends(oauth2_schem),
+                        user_service: UserService = Depends(get_user_service)) -> UserModel | None:
     
-    # в dependency можно выбрасывать HttpException
-    # так как это уже часть веба
-    token_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate token",
-        headers={"WWW-Authenticate": "Bearer"})
+    if not token:
+        return None
     
     default_logger.debug(f"Getting user from token: Decoding token")
     payload = decode_token(token)
     if payload is None or payload["type"] != TokenTypeEnum.ACCESS:
         default_logger.error("Getting user from token: Error. Payload is empty or token is not access")
-        raise token_exception
+        return None
     
-    default_logger.debug("Getting user from token: Getting user id in token")
-    user_id = UUID(payload["sub"])
-    if user_id is None:
+    try:
+        default_logger.debug("Getting user from token: Getting user id in token")
+        user_id = UUID(payload["sub"])
+    except (ValueError, KeyError):
         default_logger.error("Getting user from token: Error. Cant find user id in token")
-        raise token_exception
+        return None
     
     try:
         default_logger.debug("Getting user from token: Finding user in db")
@@ -58,7 +56,17 @@ async def get_user_from_token(token: str = Depends(oauth2_schem),
         return user
     except UserNotFoundException:
             default_logger.error("Getting user from token: Error. Cant find user in db")
-            raise token_exception
+            return None
+
+async def get_user_from_token(
+            user: UserModel | None = Depends(get_user_or_none_from_token)) -> UserModel:
+    
+    if user is None:
+        raise HTTPException(status_code=401,
+                            detail="Could not validate token",
+                            headers={"WWW-Authenticate": "Bearer"})
+    
+    return user
 
 
 # так как нам надо передать параметр

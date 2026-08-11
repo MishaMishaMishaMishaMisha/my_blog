@@ -17,12 +17,14 @@ import asyncio
 
 @app.task
 def update_views_count() -> None:
+    default_logger.debug("Task update views post count is running")
     asyncio.run(update_views_count_async_task())
 
 async def update_views_count_async_task() -> None:
     
     default_logger.info("Celery task. Update views count. Start (new version)")
     
+    # создаем новое подключение так как задача выполняется в новом event loop
     redis = RedisBackend()
 
     # переименовываем ключ
@@ -63,6 +65,9 @@ async def update_views_count_async_task() -> None:
 
         # удаляем ключ
         await redis.delete(processing_key)
+        
+        # закрываем соединение
+        await redis.close()
         
         default_logger.debug("Updating views count: Done")
 

@@ -5,44 +5,108 @@ from uuid import UUID
 from fastapi import UploadFile
 from source.core.types import ALLOWED_FILE_TYPES
 from source.core.exceptions import NotAllowedFileTypeException, FileWritingException, FileAddingException
-from source.services.storage.localStorage import LocalStorage
+from source.services.storage.baseStorage import BaseStorage
 from source.schemas.attachment import AttachmentDTO
 
 
 
 class MediaFileService:
 
-    def __init__(self, mediafile_repo: MediaFileRepository, storage: LocalStorage):
+    def __init__(self, mediafile_repo: MediaFileRepository, storage: BaseStorage):
         
         self.mediafile_repo = mediafile_repo
         self.storage = storage
+        
+    async def add_file(self,
+                       file: UploadFile,
+                       user_id: UUID) -> AttachmentDTO:
+        
+        return (await self.add_files([file], user_id))[0]
+        
+    async def add_files(self,
+                        files: list[UploadFile],
+                        user_id: UUID) -> list[AttachmentDTO]:
 
-    async def add_file(self, file: UploadFile, user_id: UUID) -> AttachmentDTO:
-
-        if file.content_type not in ALLOWED_FILE_TYPES:
-            raise NotAllowedFileTypeException("File type is unsupperted")
+        saved_files = []
+        models = []
 
         try:
-            saved_file = self.storage.save(file)
-            default_logger.info("Uploading file: file saved in storage")
+            for file in files:
 
-            model = AttachmentMediaModel(
-                user_id=user_id,
-                filename=saved_file.filename,
-                size=saved_file.size,
-                mime_type=saved_file.mime_type,
-                file_type=saved_file.file_type)
+                if file.content_type not in ALLOWED_FILE_TYPES:
+                    raise NotAllowedFileTypeException(
+                        f"Unsupported file type: {file.content_type}"
+                    )
 
-            await self.mediafile_repo.add_file(model)
-            
-            return AttachmentDTO.model_validate(model)
-            #return model
+                default_logger.debug("Uploading file: try to save file in storage")
+                saved = self.storage.save(file)
+                saved_files.append(saved)
+                
+                default_logger.info("Uploading file: file saved")
 
-        except FileWritingException as e:
+                model = AttachmentMediaModel(
+                    user_id=user_id,
+                    filename=saved.filename,
+                    size=saved.size,
+                    mime_type=saved.mime_type,
+                    file_type=saved.file_type,
+                )
 
-            self.storage.delete(saved_file.filename)
+                self.mediafile_repo.add_file(model)
+                models.append(model)
+
+            default_logger.info("Uploading file: try to add files in db")
+            await self.mediafile_repo.make_commit()
+
+            return [AttachmentDTO.model_validate(model) for model in models]
+
+        except Exception as e:
+
+            await self.mediafile_repo.make_rollback()
+
+            for saved in saved_files:
+                self.storage.delete(saved.filename)
+
+            if isinstance(
+                e,
+                (
+                    NotAllowedFileTypeException,
+                    FileWritingException,
+                    FileAddingException,
+                ),
+            ):
+                raise
 
             raise FileAddingException(str(e))
+
+    # async def add_file(self, file: UploadFile, user_id: UUID) -> AttachmentDTO:
+
+    #     if file.content_type not in ALLOWED_FILE_TYPES:
+    #         raise NotAllowedFileTypeException("File type is unsupperted")
+
+    #     try:
+    #         saved_file = self.storage.save(file)
+    #         default_logger.info("Uploading file: file saved in storage")
+
+    #         model = AttachmentMediaModel(
+    #             user_id=user_id,
+    #             filename=saved_file.filename,
+    #             size=saved_file.size,
+    #             mime_type=saved_file.mime_type,
+    #             file_type=saved_file.file_type)
+
+    #         self.mediafile_repo.add_file(model)
+            
+    #         await self.mediafile_repo.make_commit()
+            
+    #         return AttachmentDTO.model_validate(model)
+    #         #return model
+
+    #     except FileWritingException as e:
+
+    #         self.storage.delete(saved_file.filename)
+
+    #         raise FileAddingException(str(e))
         
     async def delete_file(self, file_id: UUID):
         deleted_filename = await self.mediafile_repo.delete_file(file_id)
@@ -63,6 +127,7 @@ class MediaFileService:
                 self.storage.delete(fname)
             
             default_logger.info("Deleting temp files: temp files deleted")
+            await self.mediafile_repo.make_commit()
         else:
             default_logger.info("Deleting temp files: temp files not found")
         
@@ -98,6 +163,7 @@ class MediaFileService:
             )
 
             await self.mediafile_repo.delete_files(missing_files)
+            await self.mediafile_repo.make_commit()
 
         default_logger.info(
             "Sync storage: finished (deleted files=%d, deleted records=%d)",

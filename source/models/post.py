@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import text, ForeignKey, Text
+from sqlalchemy import text, ForeignKey, Text, DateTime
 from source.models.base import BaseORMModel
 from source.core.types import str_120, TypeReactionEnum
 from datetime import datetime
@@ -34,11 +34,13 @@ class PostModel(BaseORMModel):
     views_count: Mapped[int] = mapped_column(server_default=text("0"))
     
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"))
+        DateTime(timezone=True),
+        server_default=text("now()"))
     
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"),
-        server_onupdate=text("TIMEZONE('utc', now())"))
+        DateTime(timezone=True),
+        server_default=text("now()"),
+        server_onupdate=text("now()"))
     
     
     
@@ -74,8 +76,12 @@ class PostModel(BaseORMModel):
     @property
     def reactions(self) -> dict[TypeReactionEnum, int]:
         from collections import Counter
-        # Считаем типы реакций из списка объектов
-        return dict(Counter(r.reaction_type for r in self.reactions_list))
+
+        counts = {reaction_type: 0 for reaction_type in TypeReactionEnum}
+        actual_counts = Counter(r.reaction_type for r in self.reactions_list)
+        counts.update(actual_counts)
+        
+        return counts
     
 
     

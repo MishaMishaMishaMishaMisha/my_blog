@@ -1,23 +1,16 @@
 from pathlib import Path
 from shutil import copyfileobj
 from uuid import uuid4
-from dataclasses import dataclass
 from fastapi import UploadFile
 from source.core.exceptions import FileWritingException
 from source.core.logger import default_logger
 from source.core.types import FileTypeEnum
+from source.services.storage.baseStorage import BaseStorage, SavedFile
 
 
-
-@dataclass(slots=True, frozen=True)
-class SavedFile:
-    filename: str
-    size: int
-    mime_type: str
-    file_type: FileTypeEnum
     
 
-class LocalStorage:
+class LocalStorage(BaseStorage):
 
     def __init__(self, upload_dir: Path):
         self.upload_dir = upload_dir

@@ -2,6 +2,13 @@ from httpx import AsyncClient
 import pytest
 import asyncio
 
+from sqlalchemy import select
+
+from source.models.user import UserModel
+from source.repositories.user import UserRepository
+from source.cache.redis_backend import redis_backend
+from source.services.verify_user import VerifyUserService
+
 
 @pytest.mark.asyncio(loop_scope="session")
 class TestAuth:
@@ -47,7 +54,24 @@ class TestAuth:
         data = response.json()
         assert data.get("access_token", None) is None
         assert response.cookies.get("refresh_token", None) is None
+    
+    async def test_logout_user(self, 
+                               async_client: AsyncClient, 
+                               authenticated_user):
         
+        refresh_token = authenticated_user["refresh_token"]
+        assert refresh_token is not None
+        
+        response = await async_client.post("/auth/logout",
+                                          cookies={"refresh_token": refresh_token})
+        
+        assert response.status_code == 200
+        assert response.cookies.get("refresh_token", None) is None
+        
+        # logout without refresh token
+        response = await async_client.post("/auth/logout")
+        assert response.status_code == 200
+        assert response.cookies.get("refresh_token", None) is None
         
     async def test_update_refresh_token(self, 
                                         async_client: AsyncClient, 
@@ -78,68 +102,103 @@ class TestAuth:
         assert data.get("access_token", None) != access_token
         assert response.cookies.get("refresh_token", None) != refresh_token
         
+    async def test_resend_verify_email(self,
+                                       async_client: AsyncClient,
+                                       authenticated_notVerified_user,
+                                       authenticated_user,
+                                       mock_email_service): 
+
+        response = await async_client.post(
+                "/auth/resend-verification-email",
+                headers={"Authorization": f"Bearer {authenticated_notVerified_user["access_token"]}"})
+        assert response.status_code == 200
+        # должен быть вызван сервис по отвравке письма
+        assert mock_email_service.call_count == 1
         
-    async def test_get_protected_page(self, 
-                                      async_client: AsyncClient, 
-                                      user_json):
+        response = await async_client.post(
+                "/auth/resend-verification-email",
+                headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
+        assert response.status_code == 200
+        # письмо не должно быть отправлено
+        assert mock_email_service.call_count == 1
+
+    async def test_verify_email(self,
+                                       async_client: AsyncClient,
+                                       db_session,
+                                       authenticated_notVerified_user,
+                                       mock_email_service): 
         
-        # register
-        response = await async_client.post("/users/register", json=user_json)
+        user_id = authenticated_notVerified_user["user"].id
+        access_token = authenticated_notVerified_user["access_token"]
+
+        verify_service = VerifyUserService(UserRepository(db_session), redis_backend)
+        
+        verify_link = await verify_service.create_verify_link(user_id)        
+        
+        token = verify_link.split("=")[1]
+        response = await async_client.get("/auth/verify-email?token=" + token)
         assert response.status_code == 200
         
-        # try to get page without authenticate
-        response = await async_client.get("/users/me")
+        # check user verify
+        response = await async_client.post(
+                "/auth/resend-verification-email",
+                headers={"Authorization": f"Bearer {access_token}"})
+        assert response.status_code == 200
+        # письмо не должно быть отправлено
+        assert mock_email_service.call_count == 0
+        assert response.json()["message"] == "your account already verified"
+        
+        # try to verify again
+        response = await async_client.get("/auth/verify-email?token=" + token)
         assert response.status_code == 401
+
+    async def test_forgot_password_email(self,
+                                       async_client: AsyncClient,
+                                       authenticated_user,
+                                       mock_email_service): 
+
+        email = authenticated_user["user"].email
+
+        response = await async_client.post("/auth/forgot-password", json={"user_email": email})
+        assert response.status_code == 200
+        # должен быть вызван сервис по отвравке письма
+        assert mock_email_service.call_count == 1
         
-        # try to get page with incorrect token
-        response = await async_client.get("/users/me", headers={"Authorization": "Bearer 12345"})
-        assert response.status_code == 401
+        # повторный вызов
+        response = await async_client.post("/auth/forgot-password", json={"user_email": email})
+        assert response.status_code == 400
+        # должен быть вызван сервис по отвравке письма
+        assert mock_email_service.call_count == 1
+
+    async def test_reset_password(self,
+                                       async_client: AsyncClient,
+                                       db_session,
+                                       authenticated_user,
+                                       mock_email_service): 
         
-        # login and save token
-        response = await async_client.post("/auth/login", data={"username": user_json["email"],
-                                                                "password": user_json["password"]})
-        access_token = response.json().get("access_token", None)
+        user_id = authenticated_user["user"].id
+        username = authenticated_user["user"].username
+        access_token = authenticated_user["access_token"]
         
-        response = await async_client.get("/users/me", headers={"Authorization": f"Bearer {access_token}"})
+        new_password = "qwerty12345"
+
+        verify_service = VerifyUserService(UserRepository(db_session), redis_backend)
+        
+        resetting_link = await verify_service.create_resetPassword_link(user_id)        
+        
+        token = resetting_link.split("=")[1]
+        response = await async_client.post("/auth/reset-password", 
+                                          json={"token": token, "new_password": new_password})
         assert response.status_code == 200
         
-    
-    # client must have role admin to get page
-    async def test_get_security_page(self, 
-                                      async_client: AsyncClient, 
-                                      user_json):
-        
-        # register user and admin
-        user = user_json.copy()
-        admin = user_json.copy()
-        user["username"] = "randomusername"
-        user["email"] = "randommefe324@gmail.com"
-        admin["role"] = "admin"
-        
-        response_user = await async_client.post("/users/register", json=user)
-        response_admin = await async_client.post("/users/register", json=admin)
-        assert response_user.status_code == 200
-        assert response_admin.status_code == 200
-        
-        # login and save tokens
-        response_user = await async_client.post("/auth/login", data={"username": user["email"],
-                                                                     "password": user["password"]})
-        access_token_user = response_user.json().get("access_token", None)
-        
-        response_admin = await async_client.post("/auth/login", data={"username": admin["email"],
-                                                                      "password": admin["password"]})
-        access_token_admin = response_admin.json().get("access_token", None)
-        
-        # try to get security page
-        response_user = await async_client.get("/users/securitypage", 
-                                               headers={"Authorization": f"Bearer {access_token_user}"})
-        assert response_user.status_code == 403
-        
-        response_admin = await async_client.get("/users/securitypage", 
-                                                headers={"Authorization": f"Bearer {access_token_admin}"})
-        assert response_admin.status_code == 200
-        
-        # try to get page with role admin but with incorrect token
-        response = await async_client.get("/users/securitypage", 
-                                          headers={"Authorization": f"Bearer {12345}"})
+        # try to reset again
+        response = await async_client.post("/auth/reset-password", 
+                                          json={"token": token, "new_password": "fblnkgbegkgbgn"})
         assert response.status_code == 401
+        
+        # check new password
+        response = await async_client.post("/auth/login", data={"username": username,
+                                                                "password": new_password})
+        assert response.status_code == 200
+        
+

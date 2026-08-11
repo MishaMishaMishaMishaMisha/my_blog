@@ -2,10 +2,10 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 from source.core.types import TypeReactionEnum
 from source.schemas.attachment import AttachmentDTO
+from datetime import datetime
 
 
 class CommentAddDTO(BaseModel):
-    post_id: UUID
     parent_id: UUID | None = None
     body: str = Field(max_length=2000)
     files_id: list[UUID] | None = Field(default=None)
@@ -27,6 +27,8 @@ class CommentWithoutRelationsDTO(BaseModel):
     parent_id: UUID | None
     body: str
     attachments: list[AttachmentDTO]
+    author_username: str = ""
+    created_at: datetime
 
     model_config = {'from_attributes': True}
     
@@ -39,8 +41,13 @@ class CommentWithRepliesDTO(CommentWithoutRelationsDTO):
 class CommentWithReactionsDTO(CommentWithoutRelationsDTO):
     reactions: dict[TypeReactionEnum, int]
     count_replies: int = 0
+    created_at: datetime
+    # реакция текущего пользователя на комметарий
+    user_reaction: TypeReactionEnum | None = None
     
 class CommentFullDTO(CommentWithoutRelationsDTO):
     parent: CommentWithoutRelationsDTO
     replies: list[CommentWithoutRelationsDTO]
     reactions: dict[TypeReactionEnum, int]
+    created_at: datetime
+    user_reaction: TypeReactionEnum | None = None

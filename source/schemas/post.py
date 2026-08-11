@@ -2,18 +2,20 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 from source.core.types import TypeReactionEnum
 from source.schemas.attachment import AttachmentDTO
+from source.schemas.tag import TagDTO, TagCreateDTO
+from datetime import datetime
 
 
 class PostAddDTO(BaseModel):
     title: str = Field(..., max_length=120)
     body: str
     files_id: list[UUID] | None = Field(default=None)
-    tags: list[str] | None = Field(default=None)
+    tags: list[TagCreateDTO] | None = Field(default=None)
     
 class PostPatchDTO(BaseModel):
     title: str | None = Field(default=None, max_length=120)
     body: str | None = Field(default=None)
-    tags: list[str] | None = Field(default=None)
+    tags: list[TagCreateDTO] | None = Field(default=None)
     files_id: list[UUID] | None = Field(default=None)
     
 class PostAddReactionDTO(BaseModel):
@@ -21,11 +23,6 @@ class PostAddReactionDTO(BaseModel):
     reaction_type: TypeReactionEnum
     
 # response
-class TagDTO(BaseModel):
-    id: UUID
-    name: str = Field(..., max_length=50)
-    
-    model_config = {'from_attributes': True}
     
 class PostWithoutRelationsDTO(BaseModel):
     id: UUID
@@ -41,9 +38,14 @@ class PostWithTagsDTO(PostWithoutRelationsDTO):
 class PostWithReactionsDTO(PostWithoutRelationsDTO):
     reactions: dict[TypeReactionEnum, int]
 class PostFullDTO(PostWithoutRelationsDTO):
+    author_username: str = ""
     tags: list[TagDTO]
     reactions: dict[TypeReactionEnum, int]
     comments_count: int = 0
+    created_at: datetime
+    # реакция на пост текущего пользователя
+    # None - если не авторизован или не оставлял реакцию
+    user_reaction: TypeReactionEnum | None = None
     
     
 class PostPreviewDTO(BaseModel):

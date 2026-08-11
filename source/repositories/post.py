@@ -7,10 +7,13 @@ from source.models.attachment_media import AttachmentMediaModel
 from source.models.post_reaction import PostReactionModel
 from source.models.comment import CommentModel
 from source.schemas.post import PostAddDTO, PostPatchDTO, PostAddReactionDTO
-from source.services.storage.localStorage import LocalStorage
+from source.services.storage.baseStorage import BaseStorage
 from sqlalchemy import select, delete, and_, update, func, text, bindparam, Integer
-from sqlalchemy.orm import selectinload, defer
-from source.core.exceptions import PostNotFoundException, FileNotFoundException
+from sqlalchemy.orm import selectinload, defer, joinedload
+from source.core.exceptions import (PostNotFoundException,
+                                    FileNotFoundException,
+                                    TagNotFoundException,
+                                    CommittingException)
 from source.core.logger import default_logger
 from typing import Sequence, cast
 from uuid import UUID
@@ -21,11 +24,12 @@ from datetime import datetime, timedelta, UTC
 from typing import Any
 from sqlalchemy.sql.elements import BindParameter
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.exc import IntegrityError
 
 
 class PostRepository:
     
-    def __init__(self, db_session: AsyncSession, storage: LocalStorage | None = None):
+    def __init__(self, db_session: AsyncSession, storage: BaseStorage | None = None):
         self.db_session = db_session
         self.storage = storage
         
@@ -39,23 +43,24 @@ class PostRepository:
                                body=new_post.body)
         
         # tags
-        if new_post.tags is not None:
-            default_logger.debug("Adding new post: getting tags from db")
-            # получаем уже существующие теги из базы
-            res = await self.db_session.execute(select(TagModel).where(TagModel.name.in_(new_post.tags)))
-            existing_tags = res.scalars().all()
-            existing_tags_dict = {tag.name: tag for tag in existing_tags}
-            
-            default_logger.debug("Adding new post: add tags to post")
-            # если тега в базе нету создаем новую модель и добавляем к посту
-            # если есть, то сразу добавляем к посту
-            # обратную связь Tag-Post алхимия сама создаст 
-            for tag_name in new_post.tags:
-                if tag_name in existing_tags_dict:
-                    post_model.tags.append(existing_tags_dict[tag_name])
+        if new_post.tags:
+            existing_ids = [tag.id for tag in new_post.tags if tag.id is not None]
+
+            existing_tags = {}
+            if existing_ids:
+                res = await self.db_session.execute(select(TagModel).where(TagModel.id.in_(existing_ids)))
+                existing_tags = {tag.id: tag for tag in res.scalars()}
+
+            for tag in new_post.tags:
+                if tag.id is not None:
+                    tag_model = existing_tags.get(tag.id)
+                    if tag_model is None:
+                        raise TagNotFoundException(tag.id)
+
+                    post_model.tags.append(tag_model)
                 else:
-                    new_tag = TagModel(name=tag_name)
-                    post_model.tags.append(new_tag)
+                    post_model.tags.append(TagModel(name=tag.name))
+        
         
         default_logger.debug("Adding new post: add post to db")
         # алхимия сама добавит новые теги в базу
@@ -87,9 +92,15 @@ class PostRepository:
             
             default_logger.debug("Adding new post: files added")
         
-        await self.db_session.commit()
-        # подгружаем теги и файлы
-        await self.db_session.refresh(post_model, attribute_names=["tags", "attachments"])
+        try:
+            default_logger.debug("Adding new post: try commit")
+            await self.db_session.commit()
+        except IntegrityError as e:
+            default_logger.error(f"Adding new post: Error. {e}")
+            raise CommittingException("Error while saving post")
+        
+        # подгружаем теги, автора и файлы
+        await self.db_session.refresh(post_model, attribute_names=["tags", "attachments", "author"])
         
         return post_model
     
@@ -124,16 +135,31 @@ class PostRepository:
         
         return post
     
-    async def get_post_with_comments_count(self, post_id: UUID, 
-                             load_options: Sequence[ORMOption] | None = None) -> tuple[PostModel, int]:
+    async def get_post_with_data(self, 
+            user_id: UUID | None,
+            post_id: UUID, 
+            load_options: Sequence[ORMOption] | None = None) -> tuple[PostModel, 
+                                                                      int, 
+                                                                      str, 
+                                                                      TypeReactionEnum | None]:
+    
+        # возвращает: пост и доп. колонки - к-во комментов, автор поста, реакция текущего пользователя
         
         default_logger.debug("Getting post with comments count")
 
         subq_comments_count = (select(func.count(CommentModel.id))
                             .where(CommentModel.post_id == PostModel.id)
                             .scalar_subquery())
-        query = (select(PostModel, subq_comments_count.label("comments_count"))
-                    .where(PostModel.id==post_id))
+        query = (select(PostModel, 
+                        subq_comments_count.label("comments_count"),
+                        UserModel.username.label("author_username"),
+                        PostReactionModel.reaction_type.label("user_reaction"))
+                 # автор поста
+                .join(UserModel, PostModel.author_id == UserModel.id)
+                # реакция пользователя на этот пост
+                .outerjoin(PostReactionModel, and_(PostReactionModel.post_id == PostModel.id,
+                                                   PostReactionModel.user_id == user_id))
+                .where(PostModel.id==post_id))
         
         if load_options:
             query = query.options(*load_options)
@@ -146,7 +172,7 @@ class PostRepository:
             default_logger.debug("Getting post with comments count: Error. Post not found")
             raise PostNotFoundException("Post not found in db")
         
-        return cast(tuple[PostModel, int], post)
+        return cast(tuple[PostModel, int, str, TypeReactionEnum | None], post)
         
     async def bulk_increment_views(self, updates: list[tuple[UUID, int]]) -> None:
         
@@ -188,15 +214,193 @@ class PostRepository:
         default_logger.debug("Updating views count: query executed successfuly")
         # commit в другом месте делаем
         
-        
     
-    # return: (total_count_posts, list[post, comments_count])
+    async def get_user_posts(self, username: str,
+                             limit: int, offset: int) -> tuple[int, Sequence[tuple[PostModel, 
+                                                                                   int,
+                                                                                   str]]]:
+        
+        # 1. Подзапрос для подсчета общего количества постов пользователя (для пагинации)
+        total_posts_subq = (
+            select(func.count(PostModel.id))
+            .join(PostModel.author)
+            .where(UserModel.username == username)
+            .scalar_subquery()
+        )
+
+        # 2. Подзапрос для подсчета комментариев к каждому отдельному посту
+        comments_count_subq = (
+            select(func.count(CommentModel.id))
+            .where(CommentModel.post_id == PostModel.id)
+            .scalar_subquery()
+        )
+
+        # 3. Основной запрос: получаем пост, количество комментариев к нему и общее число постов
+        stmt = (
+            select(
+                total_posts_subq.label("all_user_posts_count"),
+                PostModel,
+                comments_count_subq.label("comments_count"),
+            )
+            .join(PostModel.author)
+            .where(UserModel.username == username)
+            .order_by(PostModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+            .options(selectinload(PostModel.tags))
+        )
+
+        result = await self.db_session.execute(stmt)
+        rows = result.all()
+
+        if not rows:
+            default_logger.info("Getting user posts: posts not found")
+            return 0, []
+
+        # Общее количество постов одинаково для всех строк выборки, берем из первой
+        total_count = rows[0].all_user_posts_count
+
+        # Формируем список пар: (post_model, comments_count)
+        posts_data = [
+            (row.PostModel, row.comments_count, username) 
+            for row in rows
+        ]
+        
+        return cast(tuple[int, list[tuple[PostModel, int, str]]], (total_count, posts_data))
+        
+
+    async def get_posts_with_tag(self, 
+                                 tagname: str,
+                                 limit: int, offset: int) -> tuple[int, Sequence[tuple[PostModel, 
+                                                                                       int,
+                                                                                       str]]]:
+        
+        # 1. Подзапрос для подсчета общего количества постов с этим тегом (для пагинации)
+        total_posts_with_tag_subq = (
+            select(func.count(PostModel.id))
+            .join(PostModel.tags)
+            .where(TagModel.name.ilike(f"%{tagname}%"))
+            .scalar_subquery()
+        )
+
+        # 2. Подзапрос для подсчета комментариев к каждому отдельному посту
+        comments_count_subq = (
+            select(func.count(CommentModel.id))
+            .where(CommentModel.post_id == PostModel.id)
+            .scalar_subquery()
+        )
+
+        # 3. Основной запрос: получаем пост, количество комментариев к нему и общее число постов
+        stmt = (
+            select(
+                total_posts_with_tag_subq.label("total_posts_count"),
+                PostModel,
+                comments_count_subq.label("comments_count"),
+                UserModel.username.label("author_username")
+            )
+            .join(PostModel.tags)
+            .join(UserModel, PostModel.author_id == UserModel.id)
+            .where(TagModel.name.ilike(f"%{tagname}%"))
+            .order_by(PostModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+            .options(selectinload(PostModel.tags))
+        )
+
+        result = await self.db_session.execute(stmt)
+        rows = result.all()
+
+        if not rows:
+            default_logger.info("Getting posts with tag: posts not found")
+            return 0, []
+
+        # Общее количество постов одинаково для всех строк выборки, берем из первой
+        total_count = rows[0].total_posts_count
+        
+        default_logger.debug(f"Getting posts with tag: found {total_count} posts")
+
+        # Формируем список: (post_model, comments_count, author_username)
+        posts_data = [
+            (row.PostModel, row.comments_count, row.author_username) 
+            for row in rows
+        ]
+        
+        return cast(tuple[int, list[tuple[PostModel, int, str]]], (total_count, posts_data))
+
+
     async def get_posts(self, 
             limit: int, offset: int,
             sort: PostsSortEnum, period: PeriodEnum,
-            load_options: Sequence[ORMOption] | None = None) -> tuple[int, Sequence[tuple[PostModel, int]]]:
+            load_options: Sequence[ORMOption] | None = None) -> tuple[int, 
+                                                                      Sequence[tuple[PostModel, 
+                                                                                     int,
+                                                                                     str]]]:
+        # return: (total_count_posts, list[post, comments_count, author_username])
+        
         
         default_logger.debug(f"Getting posts from db: limit={limit}, offset={offset}")
+        
+        # Собираем условия фильтрации
+        where_conditions = []
+
+        if sort == PostsSortEnum.POPULAR and period != PeriodEnum.ALL_TIME:
+            now = datetime.now()
+            period_deltas = {
+                PeriodEnum.DAY: timedelta(days=1),
+                PeriodEnum.WEEK: timedelta(weeks=1),
+                PeriodEnum.MONTH: timedelta(days=30),
+                PeriodEnum.YEAR: timedelta(days=365),
+            }
+            if period in period_deltas:
+                where_conditions.append(PostModel.created_at >= now - period_deltas[period])
+
+        # 1. Подсчет общего количества (Чистый count без связей)
+        count_query = select(func.count(PostModel.id)).where(*where_conditions)
+        total_count = (await self.db_session.execute(count_query)).scalar_one()
+
+        # 2. Подзапрос количества комментариев
+        subq_comments_count = (
+            select(func.count(CommentModel.id))
+            .where(CommentModel.post_id == PostModel.id)
+            .scalar_subquery()
+        )
+
+        # 3. Основная выборка
+        query = (
+            select(
+                PostModel,
+                subq_comments_count.label("comments_count"),
+                UserModel.username.label("author_username")
+            )
+            .where(*where_conditions)
+            .join(UserModel, PostModel.author_id == UserModel.id)
+            .options(defer(PostModel.body))
+        )
+
+        # Сортировка
+        if sort == PostsSortEnum.NEW:
+            query = query.order_by(PostModel.created_at.desc())
+        elif sort == PostsSortEnum.POPULAR:
+            query = query.order_by(PostModel.views_count.desc())
+
+        # Пагинация и доп. опции загрузки
+        query = query.limit(limit).offset(offset)
+        if load_options:
+            query = query.options(*load_options)
+
+        result = await self.db_session.execute(query)
+        posts = result.all()
+
+        return cast(tuple[int, list[tuple[PostModel, int, str]]], (total_count, posts))
+
+    
+    async def get_posts_by_ids(self, 
+                post_ids: Sequence[UUID], 
+                load_options: Sequence[ORMOption] | None = None) -> Sequence[tuple[PostModel, 
+                                                                                   int,
+                                                                                   str]]:
+        
+        default_logger.debug(f"Getting {len(post_ids)} posts by ids from db")
         
         subq_comments_count = (
             select(func.count(CommentModel.id))
@@ -204,57 +408,12 @@ class PostRepository:
             .scalar_subquery()
         )
 
-        query = (
-            select(
-                PostModel,
-                subq_comments_count.label("comments_count")
-            )
-            .options(defer(PostModel.body))
-        )
-
-        match sort:
-
-            case PostsSortEnum.NEW:
-                query = query.order_by(PostModel.created_at.desc())
-
-            case PostsSortEnum.POPULAR:
-
-                match period:
-
-                    case PeriodEnum.ALL_TIME:
-                        pass
-
-                    case PeriodEnum.DAY:
-                        border = datetime.now() - timedelta(days=1)
-                        query = query.where(PostModel.created_at >= border)
-
-                    case PeriodEnum.WEEK:
-                        border = datetime.now() - timedelta(weeks=1)
-                        query = query.where(PostModel.created_at >= border)
-
-                    case PeriodEnum.MONTH:
-                        border = datetime.now() - timedelta(days=30)
-                        query = query.where(PostModel.created_at >= border)
-
-                    case PeriodEnum.YEAR:
-                        border = datetime.now() - timedelta(days=365)
-                        query = query.where(PostModel.created_at >= border)
-
-                query = query.order_by(PostModel.views_count.desc())
-
-        count_query = (
-            select(func.count())
-            .select_from(query.order_by(None).subquery())
-        )
-
-        result = await self.db_session.execute(count_query)
-        total_count = result.scalar_one()
-
-        query = (
-            query
-            .limit(limit)
-            .offset(offset)
-        )
+        query = (select(PostModel,
+                        subq_comments_count.label("comments_count"),
+                        UserModel.username.label("author_username"))
+                 .options(defer(PostModel.body))
+                 .join(UserModel, PostModel.author_id == UserModel.id)
+                 .where(PostModel.id.in_(post_ids)))
 
         if load_options:
             query = query.options(*load_options)
@@ -262,7 +421,8 @@ class PostRepository:
         result = await self.db_session.execute(query)
         posts = result.all()
         
-        return cast(tuple[int, list[tuple[PostModel, int]]], (total_count, posts))
+        return cast(list[tuple[PostModel, int, str]], posts)
+        
     
     async def update_post(self, post_id: UUID, author_id: UUID, post_data: PostPatchDTO) -> PostModel:
         default_logger.debug("Updating post: start")
@@ -275,7 +435,9 @@ class PostRepository:
             # все поля пустые
             # ничего не меняем
             # возвращаем этот пост
-            options = [selectinload(PostModel.tags), selectinload(PostModel.attachments)]
+            options = [selectinload(PostModel.tags), 
+                       selectinload(PostModel.attachments),
+                       joinedload(PostModel.author)]
             return await self.get_post_by_id(post_id, options)
         
         # теги и файлы обновим потом отдельно
@@ -300,31 +462,34 @@ class PostRepository:
         
         # обновляем теги
         if updated_tags is not None:
+            
             if len(updated_tags) == 0:
                 default_logger.debug("Updating post: deleting all tags from post")
                 post_model.tags = []
             else:
                 default_logger.debug("Updating post: updating post tags")
-
-                # получаем уже существующие теги из базы
-                res = await self.db_session.execute(select(TagModel).where(TagModel.name.in_(updated_tags)))
-                existing_tags = res.scalars().all()
-                existing_tags_dict = {tag.name: tag for tag in existing_tags}
                 
+                existing_ids = [tag["id"] for tag in updated_tags if tag.get("id", None)]
+
+                existing_tags = {}
+                if existing_ids:
+                    res = await self.db_session.execute(select(TagModel).where(TagModel.id.in_(existing_ids)))
+                    existing_tags = {tag.id: tag for tag in res.scalars()}
+                    
                 # удаляем все старые теги с поста
                 post_model.tags = []
-                
-                # Если пользователь передал новые теги которых нету в базе,
-                # то создаем новую модель. алхимия потом сама добавит новый тег в базу
-                for tag_name in updated_tags:
-                    if tag_name in existing_tags_dict:
-                        post_model.tags.append(existing_tags_dict[tag_name])
+
+                for tag in updated_tags:
+                    if tag.get("id", None):
+                        tag_model = existing_tags.get(tag["id"])
+                        if tag_model is None:
+                            raise TagNotFoundException(tag["id"])
+
+                        post_model.tags.append(tag_model)
                     else:
-                        new_tag = TagModel(name=tag_name)
-                        post_model.tags.append(new_tag)
-                
+                        post_model.tags.append(TagModel(name=tag["name"]))
+                        
                 default_logger.error("Updating post: all tags updated")
-                # алхимия сама добавит новые теги в базу
                 self.db_session.add(post_model)
         
         # обновляем файлы
@@ -379,8 +544,12 @@ class PostRepository:
         
         default_logger.debug("Updating post: saving")
         # сохраняем
-        await self.db_session.commit()
-        await self.db_session.refresh(post_model, attribute_names=["tags", "attachments"])
+        try:
+            await self.db_session.commit()
+        except:
+            raise CommittingException("error while saving post")
+            
+        await self.db_session.refresh(post_model, attribute_names=["tags", "attachments", "author"])
         
         # удаляем файлы с хранилища если такие есть
         if filenames_to_delete:
@@ -393,7 +562,11 @@ class PostRepository:
         
         return post_model
 
-    async def add_reaction_to_post(self, reaction_data: PostAddReactionDTO, user_id: UUID):
+    async def add_reaction_to_post(self, 
+                    reaction_data: PostAddReactionDTO, 
+                    user_id: UUID) -> tuple[TypeReactionEnum | None, TypeReactionEnum | None]:
+        # return: (old reaction, new reaction)
+        
         default_logger.debug("Adding reaction to post: check if post exists")
         post = await self.get_post_by_id(reaction_data.post_id)
         # если поста нету, будет raise error
@@ -405,26 +578,45 @@ class PostRepository:
         res = await self.db_session.execute(query)
         reaction = res.scalar_one_or_none()
         
+        old_reaction: TypeReactionEnum | None = None
+        new_reaction: TypeReactionEnum | None = None
+        
         if reaction and reaction.reaction_type == reaction_data.reaction_type:
-            default_logger.debug("Adding reaction to post: user made same reaction. do not nothing")
-            return None
+            default_logger.debug("Adding reaction to post: user made same reaction. delete his reaction")
+            
+            old_reaction = reaction.reaction_type
+            
+            await self.db_session.delete(reaction)
+        
         elif reaction and reaction.reaction_type != reaction_data.reaction_type:
             default_logger.debug("Adding reaction to post: user changed reaction to post")
+            
+            old_reaction = reaction.reaction_type
+            new_reaction = reaction_data.reaction_type 
+            
             reaction.reaction_type = reaction_data.reaction_type
+            
         else:
             default_logger.debug("Adding reaction to post: user adding new reaction to post")
             reaction_model = PostReactionModel(user_id=user_id,
                                                post_id=reaction_data.post_id,
                                                reaction_type=reaction_data.reaction_type)
             self.db_session.add(reaction_model)
+            
+            new_reaction = reaction_data.reaction_type
         
         await self.db_session.commit()
         default_logger.info("Adding reaction to post: reaction added")
         
+        return (old_reaction, new_reaction)
+        
     async def get_all_existing_tags(self,
-                                    limit: int, offset: int,
+                                    #limit: int, offset: int,
                                     load_options: Sequence[ORMOption] | None = None) -> Sequence[TagModel]:
-        query = select(TagModel).limit(limit).offset(offset)
+        #query = (select(TagModel).limit(limit).offset(offset))
+        query = (select(TagModel)
+                 .order_by(TagModel.name.asc()))
+        
         if load_options:
             query = query.options(*load_options)
         res = await self.db_session.execute(query)
@@ -451,6 +643,20 @@ class PostRepository:
             raise PostNotFoundException("Post not found")
         
         return post.reactions
+    
+    async def get_post_comments_count(self, post_id: UUID) -> int:
+        query = (select(func.count(CommentModel.id))
+                 .where(CommentModel.post_id == post_id))
+        res = await self.db_session.execute(query)
+        return res.scalar_one()
+    
+    async def get_user_reaction(self, post_id: UUID, user_id: UUID) -> TypeReactionEnum | None:
+        query = (select(PostReactionModel.reaction_type)
+                 .where(PostReactionModel.post_id == post_id,
+                        PostReactionModel.user_id == user_id))
+        res = await self.db_session.execute(query)
+        return res.scalar()
+        
     
     async def find_tags_by_name(self, seacrhing_tag: str,
                                 load_options: Sequence[ORMOption] | None = None) -> Sequence[TagModel]:

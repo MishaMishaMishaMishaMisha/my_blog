@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from source.models.comment import CommentModel
+from source.models.user import UserModel
 from source.models.comment_reaction import CommentReactionModel
 from source.models.attachment_media import AttachmentMediaModel
 from source.schemas.comment import CommentAddDTO, CommentPatchDTO, CommentAddReactionDTO
@@ -11,20 +12,24 @@ from typing import Sequence, cast
 from uuid import UUID
 from source.core.types import TypeReactionEnum
 from sqlalchemy.orm.interfaces import ORMOption
-from source.services.storage.localStorage import LocalStorage
+from source.services.storage.baseStorage import BaseStorage
 
 
 class CommentRepository:
     
-    def __init__(self, db_session: AsyncSession, storage: LocalStorage):
+    def __init__(self, db_session: AsyncSession, storage: BaseStorage):
         self.db_session = db_session
         self.storage = storage
         
-    async def add_comment(self, new_comment: CommentAddDTO, author_id: UUID) -> CommentModel:
+    async def add_comment(self, 
+                          new_comment: CommentAddDTO, 
+                          author_id: UUID,
+                          post_id: UUID) -> CommentModel:
 
         comment_data = new_comment.model_dump(exclude={"files_id"})
         comment_model = CommentModel(**comment_data)
         comment_model.author_id = author_id
+        comment_model.post_id = post_id
                  
         self.db_session.add(comment_model)
         
@@ -56,21 +61,68 @@ class CommentRepository:
         
         await self.db_session.commit()
 
-        await self.db_session.refresh(comment_model, attribute_names=["attachments"])
+        await self.db_session.refresh(comment_model, attribute_names=["attachments", "author"])
         
         return comment_model
     
-    async def delete_comment(self, comment_id: UUID, user_id: UUID):
+    async def delete_comment(self, comment_id: UUID, user_id: UUID) -> tuple[UUID, UUID]:
+        # returning: comment_id, post_id
+        
         query = (delete(CommentModel)
                  .where(and_(CommentModel.id==comment_id,
                              CommentModel.author_id==user_id))
-                 .returning(CommentModel.id))
-        result = await self.db_session.execute(query)
-        deleted_id = result.scalar_one_or_none()
-        if deleted_id is None:
+                 .returning(CommentModel.id, CommentModel.post_id))
+        result_db = await self.db_session.execute(query)
+        result = result_db.first()
+        if result is None:
             default_logger.error(f"Deleting comment. Error. Comment not found or user are not author")
             raise CommentNotFoundException("Comment not found or you are not author")
         await self.db_session.commit()
+        
+        return cast(tuple[UUID, UUID], result)
+    
+    async def get_comments_by_ids(self, 
+                comment_ids: list[UUID], 
+                user_id: UUID | None, 
+                load_options: Sequence[ORMOption] | None = None) -> Sequence[tuple[CommentModel,
+                                                                             str,
+                                                                             int,
+                                                                             TypeReactionEnum | None]]:
+        # returing: [(CommentModel, author_username, count_replies, user_reaction)]
+        
+        # нужен псевдоним чтобы правильно создался sql запрос
+        Reply = aliased(CommentModel)
+        subq_replies_count = (
+            select(func.count(Reply.id))
+            .where(Reply.parent_id == CommentModel.id)
+            .correlate(CommentModel)
+            .scalar_subquery()
+        )
+        query = (
+            select(CommentModel, 
+                   UserModel.username.label("author_username"),
+                   subq_replies_count.label("count_replies"),
+                   CommentReactionModel.reaction_type.label("user_reaction"))
+            # никнейм автора комментария
+            .join(UserModel, CommentModel.author_id == UserModel.id)
+            # реакция текущего пользователя на комментарий
+            .outerjoin(CommentReactionModel, and_(CommentReactionModel.comment_id == CommentModel.id,
+                                                  CommentReactionModel.user_id == user_id))
+            .where(CommentModel.id.in_(comment_ids))
+            .order_by(CommentModel.created_at.desc())
+        )
+        
+        if load_options:
+            query = query.options(*load_options)
+        
+        res = await self.db_session.execute(query)
+        
+        comments = res.all()
+        
+        if comments is None:
+            raise PostNotFoundException("Post not found or post doesnt have comments")
+        
+        return cast(list[tuple[CommentModel, str, int, TypeReactionEnum | None]], comments)
     
     async def get_comment_by_id(self, comment_id: UUID, 
                                 load_options: Sequence[ORMOption] | None = None) -> CommentModel:
@@ -91,9 +143,14 @@ class CommentRepository:
     # корневые комментарии поста (то есть те которые НЕ являются ответами на другие комменты)
     # вместе с количеством прямых ответов
     async def get_post_root_comments(self, 
-                    post_id: UUID, 
-                    limit: int, offset: int,
-                    load_options: Sequence[ORMOption] | None = None) -> Sequence[tuple[CommentModel, int]]:
+            user_id: UUID | None,
+            post_id: UUID, 
+            limit: int, offset: int,
+            load_options: Sequence[ORMOption] | None = None) -> Sequence[tuple[CommentModel, 
+                                                                               str, 
+                                                                               int,
+                                                                               TypeReactionEnum | None]]:
+        # return: [(<CommentModel>, <author_username>, <count_replies>, <user_reaction>)]
         
         default_logger.debug(f"Getting root comments for post from db: limit={limit}, offset={offset}")
         
@@ -106,7 +163,15 @@ class CommentRepository:
             .scalar_subquery()
         )
         query = (
-            select(CommentModel, subq_replies_count.label("count_replies"))
+            select(CommentModel, 
+                   UserModel.username.label("author_username"),
+                   subq_replies_count.label("count_replies"),
+                   CommentReactionModel.reaction_type.label("user_reaction"))
+            # никнейм автора комментария
+            .join(UserModel, CommentModel.author_id == UserModel.id)
+            # реакция текущего пользователя на комментарий
+            .outerjoin(CommentReactionModel, and_(CommentReactionModel.comment_id == CommentModel.id,
+                                                  CommentReactionModel.user_id == user_id))
             .where(
                 and_(
                     CommentModel.post_id == post_id,
@@ -128,13 +193,17 @@ class CommentRepository:
         if comments is None:
             raise PostNotFoundException("Post not found or post doesnt have comments")
         
-        return cast(list[tuple[CommentModel, int]], comments)
+        return cast(list[tuple[CommentModel, str, int, TypeReactionEnum | None]], comments)
     
     # корневые ответы на комментарий (ответы на другие комменты под этим комментом не учитываются)
     async def get_comment_root_replies(self, 
-                comment_id: UUID, 
-                limit: int, offset: int,
-                load_options: Sequence[ORMOption] | None = None) -> Sequence[tuple[CommentModel, int]]:
+            user_id: UUID | None,
+            comment_id: UUID, 
+            limit: int, offset: int,
+            load_options: Sequence[ORMOption] | None = None) -> Sequence[tuple[CommentModel, 
+                                                                               str, 
+                                                                               int,
+                                                                               TypeReactionEnum | None]]:
         
         default_logger.debug(f"Getting replies on comment from db: limit={limit}, offset={offset}")
         
@@ -146,7 +215,15 @@ class CommentRepository:
             .scalar_subquery()
         )
         query = (
-            select(CommentModel, subq_replies_count.label("count_replies"))
+            select(CommentModel,
+                   UserModel.username.label("author_username"),
+                   subq_replies_count.label("count_replies"),
+                   CommentReactionModel.reaction_type.label("user_reaction"))
+            # никнейм автора комментария
+            .join(UserModel, CommentModel.author_id == UserModel.id)
+            # реакция текущего пользователя на комментарий
+            .outerjoin(CommentReactionModel, and_(CommentReactionModel.comment_id == CommentModel.id,
+                                                  CommentReactionModel.user_id == user_id))
             .where(CommentModel.parent_id == comment_id)
             .order_by(CommentModel.created_at.desc())
             .limit(limit)
@@ -164,7 +241,7 @@ class CommentRepository:
             default_logger.debug("Getting replies on comment: Error. Comment doesnt have any replies or comment not found")
             raise CommentNotFoundException("Comment doesnt have any replies or comment not found")
         
-        return cast(list[tuple[CommentModel, int]], comments)
+        return cast(list[tuple[CommentModel, str, int, TypeReactionEnum | None]], comments)
     
     async def update_comment(self, comment_id: UUID, author_id: UUID, 
                              comment_data: CommentPatchDTO) -> CommentModel:
@@ -263,7 +340,10 @@ class CommentRepository:
         
         return comment_model
 
-    async def add_reaction_to_comment(self, reaction_data: CommentAddReactionDTO, user_id: UUID) -> None:
+    async def add_reaction_to_comment(self, 
+                    reaction_data: CommentAddReactionDTO, 
+                    user_id: UUID) -> tuple[TypeReactionEnum | None, TypeReactionEnum | None]:
+        # return: (old reaction, new reaction)
         
         default_logger.debug("Adding reaction to comment: check if comment exists")
         comment = await self.get_comment_by_id(reaction_data.comment_id)
@@ -276,22 +356,38 @@ class CommentRepository:
         res = await self.db_session.execute(query)
         reaction = res.scalar_one_or_none()
         
+        old_reaction: TypeReactionEnum | None = None
+        new_reaction: TypeReactionEnum | None = None
+        
         if reaction and reaction.reaction_type == reaction_data.reaction_type:
-            default_logger.debug("Adding reaction to comment: user made same reaction. do not nothing")
-            return None
+            default_logger.debug("Adding reaction to comment: user made same reaction. delete his reaction")
+            
+            old_reaction = reaction.reaction_type
+            
+            await self.db_session.delete(reaction)
+            
         elif reaction and reaction.reaction_type != reaction_data.reaction_type:
             default_logger.debug("Adding reaction to comment: user changed his reaction")
+            
+            old_reaction = reaction.reaction_type
+            new_reaction = reaction_data.reaction_type 
+            
             reaction.reaction_type = reaction_data.reaction_type
+            
         else:
             default_logger.debug("Adding reaction to comment: user adding new reaction to comment")
             reaction_model = CommentReactionModel(user_id=user_id,
                                                   comment_id=reaction_data.comment_id,
                                                   reaction_type=reaction_data.reaction_type)
             self.db_session.add(reaction_model)
+            
+            new_reaction = reaction_data.reaction_type
         
         default_logger.debug("Adding reaction to comment: reaction added")
         await self.db_session.commit()
     
+        return (old_reaction, new_reaction)
+
     async def get_all_comment_reactions(self, comment_id: UUID) -> dict[TypeReactionEnum, int]:
 
         query = (select(CommentModel)

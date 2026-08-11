@@ -1,16 +1,20 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from source.models.user import UserModel
+from source.models.post import PostModel
+from source.models.comment import CommentModel
 from source.schemas.user import UserAddDTO, UserPatchDTO
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
+from sqlalchemy.orm import contains_eager
 from sqlalchemy.orm.interfaces import ORMOption
 from sqlalchemy.exc import IntegrityError
-from source.core.exceptions import (UsernameAlreadyExsistsException, 
+from source.core.exceptions import (UserException,
+                                    UsernameAlreadyExsistsException, 
                                     EmailAlreadyExsistsException, 
                                     UserNotFoundException,
                                     UserInactiveException,
                                     UserAlreadyVerifiedException)
 from source.core.logger import default_logger
-from typing import Sequence
+from typing import Sequence, cast
 from uuid import UUID
 
 
@@ -29,24 +33,65 @@ class UserRepository:
         
         new_user_model = UserModel(**user_data, password_hash=hashed_password)
 
-        # обрабтка случая когда одновременно несколько пользователей 
-        # отправили данные с одинаковым именем
         try:
-            default_logger.debug("Adding new user: TRYING TO ADD USER IN DB")
             self.db_session.add(new_user_model)
             await self.db_session.commit()
-        except IntegrityError:
-            default_logger.error("Adding new user: ERROR. Username already taken")
+            await self.db_session.refresh(new_user_model)
+            return new_user_model
+
+        except IntegrityError as e:
             await self.db_session.rollback()
-            raise UsernameAlreadyExsistsException("such username already taken")
+            # могут быть различные ошибки - никнейм существует, почта существует и др.
+
+            msg = str(e.orig)
+
+            if 'ix_users_username' in msg:
+                raise UsernameAlreadyExsistsException("such username already taken")
+
+            if 'ix_users_email' in msg:
+                raise EmailAlreadyExsistsException("such email already taken")
+
+            raise UserException(str(e))
+    
+    async def get_user_profile(self, username: str) -> tuple[UserModel, int, int]:
         
+        # 1. Подзапрос для подсчета постов пользователя
+        posts_subq = (
+            select(func.count(PostModel.id))
+            .where(PostModel.author_id == UserModel.id)
+            .scalar_subquery()
+        )
         
-        return new_user_model
+        # 2. Подзапрос для подсчета комментариев пользователя
+        comments_subq = (
+            select(func.count(CommentModel.id))
+            .where(CommentModel.author_id == UserModel.id)
+            .scalar_subquery()
+        )
+        
+        # 3. Основной запрос
+        stmt = (
+            select(
+                UserModel,
+                posts_subq.label("posts_count"),
+                comments_subq.label("comments_count")
+            )
+            .where(UserModel.username == username)
+        )
+        
+        result = await self.db_session.execute(stmt)
+        row = result.first()
+        
+        if row is None:
+            raise UserNotFoundException("User not found in db")
+            
+        return cast(tuple[UserModel, int, int], row)
     
     async def get_user_by(self, 
                           id: UUID | None = None,
                           username: str | None = None,
-                          email: str | None = None) -> UserModel | None:
+                          email: str | None = None,
+                          load_options: Sequence[ORMOption] | None = None) -> UserModel | None:
         
         if all(param is None for param in (id, username, email)):
             default_logger.debug("Getting user from db: No id/username/email given")
@@ -61,11 +106,14 @@ class UserRepository:
         else:
             default_logger.debug(f"Getting user from db by email = {email}")
             query = select(UserModel).where(UserModel.email==email)
+            
+        if load_options:
+            query = query.options(*load_options)
         
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
     
-    async def verify_user(self, user_id: UUID) -> None:
+    async def verify_user(self, user_id: UUID) -> UserModel:
         user = await self.get_user_by(id=user_id)
         if not user:
             raise UserNotFoundException("User not found in db")
@@ -77,6 +125,8 @@ class UserRepository:
         user.is_verified = True
         await self.db_session.commit()
         
+        return user
+        
     async def reset_password(self, user_id: UUID, password_hash: str) -> None:
         user = await self.get_user_by(id=user_id)
         if not user:
@@ -87,13 +137,15 @@ class UserRepository:
         user.password_hash = password_hash
         await self.db_session.commit()
     
-    async def delete_user(self, user_id: UUID) -> None:
-        query = delete(UserModel).where(UserModel.id==user_id).returning(UserModel.id)
+    async def delete_user(self, user_id: UUID) -> str:
+        query = delete(UserModel).where(UserModel.id==user_id).returning(UserModel.username)
         result = await self.db_session.execute(query)
-        deleted_id = result.scalar_one_or_none()
-        if deleted_id is None:
+        deleted_username = result.scalar_one_or_none()
+        if deleted_username is None:
             raise UserNotFoundException("User not found in db")
         await self.db_session.commit()
+        
+        return deleted_username
     
     async def get_user(self, user_id: UUID,
                        load_options: Sequence[ORMOption] | None = None) -> UserModel:
@@ -151,6 +203,8 @@ class UserRepository:
                 if existing_email:
                     default_logger.error("Updating user: ERROR. EMAIL ALREADY IN DB")
                     raise EmailAlreadyExsistsException("such email already in db")
+                
+                user_model.is_verified = False
             
             setattr(user_model, key, value)
         
@@ -172,4 +226,9 @@ class UserRepository:
             query = query.options(*load_options)
         res = await self.db_session.execute(query)
         return res.scalars().all()
+        
+        
+        
+        
+        
         

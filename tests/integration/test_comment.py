@@ -20,7 +20,7 @@ class TestComment:
                                posts_factory,
                                authenticated_users):
         
-        users = await authenticated_users(count=6)
+        users = await authenticated_users(count=6, is_verified=True)
         
         comment_nums = 5
         
@@ -61,7 +61,7 @@ class TestComment:
                                attachments_factory,
                                authenticated_users):
         
-        users = await authenticated_users(count=2)
+        users = await authenticated_users(count=2, is_verified=True)
         
         posts = await posts_factory(users=[users[0]["user"]], count=1)
         post = posts[0]
@@ -113,7 +113,7 @@ class TestComment:
                                authenticated_users):
         
         comment_nums = 5
-        users = await authenticated_users(count=comment_nums)
+        users = await authenticated_users(count=comment_nums, is_verified=True)
         
         posts = await posts_factory(users=[users[0]["user"]], count=1)
         post = posts[0]
@@ -214,7 +214,7 @@ class TestComment:
                                 db_session,
                                 async_client: AsyncClient):
         
-        users = await authenticated_users(count=2)
+        users = await authenticated_users(count=2, is_verified=True)
         
         posts = await posts_factory(users=[users[0]["user"]], count=1)
         post = posts[0]
@@ -264,12 +264,12 @@ class TestComment:
                  .options(selectinload(CommentModel.reactions_list)))
         res = await db_session.execute(query)
         comment = res.scalar()
-        assert comment.reactions.get(TypeReactionEnum.LIKE, None) == None
+        assert comment.reactions.get(TypeReactionEnum.LIKE) == 0
         assert comment.reactions.get(TypeReactionEnum.DISLIKE) == 1
         
         
         await db_session.refresh(comment)
-        # пробуем поставить ту же реакцию еще раз
+        # пробуем поставить ту же реакцию еще раз (удалить)
         response = await async_client.post(
                             "/comments/react", 
                             json=react_data, 
@@ -279,8 +279,8 @@ class TestComment:
                  .options(selectinload(CommentModel.reactions_list)))
         res = await db_session.execute(query)
         post = res.scalar()
-        assert post.reactions.get(TypeReactionEnum.DISLIKE) == 1
-        assert post.reactions.get(TypeReactionEnum.LIKE, None) == None
+        assert post.reactions.get(TypeReactionEnum.DISLIKE) == 0
+        assert post.reactions.get(TypeReactionEnum.LIKE) == 0
         
     async def test_delete_comment(self,
                                 authenticated_users,
@@ -289,7 +289,7 @@ class TestComment:
                                 db_session,
                                 async_client: AsyncClient):
         
-        users = await authenticated_users(count=2)
+        users = await authenticated_users(count=2, is_verified=True)
         
         posts = await posts_factory(users=[users[0]["user"]], count=1)
         post = posts[0]
@@ -367,7 +367,7 @@ class TestComment:
                                          async_client: AsyncClient):
         
         # создаем комментрий
-        users = await users_factory(count=1)
+        users = await users_factory(count=1, is_verified=True)
         
         posts = await posts_factory(users=[users[0]], count=1)
         post = posts[0]
@@ -384,7 +384,6 @@ class TestComment:
         assert str(comments[0].post_id) == comment_response["post_id"]
         assert comments[0].parent_id == comment_response["parent_id"]
         assert comments[0].body == comment_response["body"]
-        assert len(comment_response["reactions"]) == 0
         assert len(comment_response["attachments"]) == 0
         
         # get post with wrong id
@@ -399,7 +398,6 @@ class TestComment:
         ]
     )
     async def test_update_comment_WithoutAttachments(self,
-                                db_session,
                                 patch_comment_data,
                                 updated_keys,
                                 async_client: AsyncClient,
@@ -407,7 +405,7 @@ class TestComment:
                                 posts_factory,
                                 comments_factory):
         
-        users = await authenticated_users(count=2)
+        users = await authenticated_users(count=2, is_verified=True)
         
         posts = await posts_factory(users=[users[0]["user"]], count=1)
         post = posts[0]
@@ -435,8 +433,7 @@ class TestComment:
             response = await async_client.patch(f"/comments/{comments[1].id}", json=patch_comment_data,
                             headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
             assert response.status_code == 404
-            
-            
+               
     async def test_update_comment_withAttachments(self,
                             authenticated_user,
                             async_client: AsyncClient, 

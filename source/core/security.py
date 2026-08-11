@@ -5,7 +5,8 @@ from pydantic import ValidationError
 from source.core.config import settings
 from source.core.types import RoleEnum, TokenTypeEnum
 from source.core.logger import default_logger
-from uuid import UUID
+from uuid import UUID, uuid4
+from typing import Any
 
 
 # configure passlib
@@ -37,11 +38,15 @@ def create_refresh_token(user_id: UUID) -> str:
     return create_jwt_token(payload, timedelta(days=settings.jwt.REFRESH_TOKEN_EXPIRE_DAYS))
 
 def create_verify_email_token(user_id: UUID) -> str:
-    payload = {"sub": str(user_id), "type": TokenTypeEnum.VERIFY_EMAIL}
+    payload = {"jti": str(uuid4()), # Уникальный ID токена
+               "sub": str(user_id), 
+               "type": TokenTypeEnum.VERIFY_EMAIL}
     return create_jwt_token(payload, timedelta(hours=settings.jwt.VERIFY_EMAIL_TOKEN_EXPIRE_HOURS))
 
 def create_reset_password_token(user_id: UUID) -> str:
-    payload = {"sub": str(user_id), "type": TokenTypeEnum.RESET_PASSWORD}
+    payload = {"jti": str(uuid4()), # Уникальный ID токена
+               "sub": str(user_id), 
+               "type": TokenTypeEnum.RESET_PASSWORD}
     return create_jwt_token(payload, timedelta(hours=settings.jwt.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES))
 
 def decode_token(token: str) -> dict | None:
@@ -56,6 +61,16 @@ def decode_token(token: str) -> dict | None:
         default_logger.error("Decoding token: ERROR. Validation error")
 
     return None
+
+
+def get_token_expire_time_seconds_left(payload: dict[str, Any]) -> int | None:
+    if not payload or not payload.get("exp"):
+        return None
+    
+    exp_timestamp = payload.get("exp")
+    now_timestamp = int(datetime.now(timezone.utc).timestamp())
+    time_left = exp_timestamp - now_timestamp
+    return time_left
 
 
         

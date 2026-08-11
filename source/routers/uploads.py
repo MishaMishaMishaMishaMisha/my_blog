@@ -3,26 +3,70 @@ from fastapi import Depends
 from source.schemas.attachment import AttachmentDTO
 from source.services.mediafile import MediaFileService
 from source.dependencies.mediafile import get_mediafile_service
-from source.core.exceptions import FileAddingException, NotAllowedFileTypeException, FileWritingException, FileNotFoundException
+from source.core.exceptions import (FileAddingException, 
+                                    NotAllowedFileTypeException, 
+                                    FileWritingException, 
+                                    FileNotFoundException,
+                                    UserNotVerifiedException)
 from fastapi import HTTPException
 from source.core.logger import default_logger
 from source.dependencies.auth import get_user_from_token
 from source.models.user import UserModel
 from fastapi import UploadFile, File
 from uuid import UUID
+from typing import Sequence, Annotated
+from source.core.types import MAX_ATTACHMENTS_IN_POST
+from source.dependencies.rate_limit import upload_limiter
 
 
 router = APIRouter(prefix="/upload", tags=["Uploads"])
 
 
+@router.post("/multiple", 
+             response_model=Sequence[AttachmentDTO],
+             dependencies=[Depends(upload_limiter)])
+async def upload_files(
+        files: Annotated[list[UploadFile], File(...)],
+        user: UserModel = Depends(get_user_from_token),
+        mediafile_service: MediaFileService = Depends(get_mediafile_service)) -> Sequence[AttachmentDTO]:
 
-@router.post("/", response_model=AttachmentDTO)
+    try:
+        default_logger.info("Uploading files: trying")
+        
+        if not user.is_verified:
+            default_logger.info("User is not verified")
+            raise HTTPException(status_code=403, detail="Please, verify your email to do this")
+        
+        if len(files) > MAX_ATTACHMENTS_IN_POST:
+            default_logger.error("Uploading files: Error. User uploads too many files")
+            e = f"You cannot upload so many files"
+            raise HTTPException(status_code=403, detail=e)
+        
+        files_dto = await mediafile_service.add_files(files, user.id)
+        
+        default_logger.info("Uploading files: files added")
+        
+        return files_dto
+
+    except NotAllowedFileTypeException as e:
+        raise HTTPException(status_code=415, detail=str(e))
+
+    except (FileWritingException, FileAddingException) as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/one-file", 
+             response_model=AttachmentDTO,
+             dependencies=[Depends(upload_limiter)])
 async def upload_file(file: UploadFile = File(...),
                  user: UserModel = Depends(get_user_from_token),
                  mediafile_service: MediaFileService = Depends(get_mediafile_service)) -> AttachmentDTO:
 
     try:
         default_logger.info("Uploading file: trying")
+        
+        if not user.is_verified:
+            default_logger.info("User is not verified")
+            raise HTTPException(status_code=403, detail="Please, verify your email to do this")
         
         file_dto = await mediafile_service.add_file(file, user.id)
         return file_dto
@@ -37,18 +81,18 @@ async def upload_file(file: UploadFile = File(...),
     except (FileWritingException, FileAddingException) as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-@router.delete("/{file_id}")
-async def delete_file(file_id: UUID, 
-                 mediafile_service: MediaFileService = Depends(get_mediafile_service)):
+# @router.delete("/{file_id}")
+# async def delete_file(file_id: UUID, 
+#                  mediafile_service: MediaFileService = Depends(get_mediafile_service)):
 
-    try:
-        default_logger.info("Deleting file: trying")
+#     try:
+#         default_logger.info("Deleting file: trying")
         
-        await mediafile_service.delete_file(file_id)
-        default_logger.info("Deleting file: file deleted")
-        return {"message": "file deleted successfully"}
+#         await mediafile_service.delete_file(file_id)
+#         default_logger.info("Deleting file: file deleted")
+#         return {"message": "file deleted successfully"}
     
-    except FileNotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+#     except FileNotFoundException as e:
+#         raise HTTPException(status_code=404, detail=str(e))
 
 

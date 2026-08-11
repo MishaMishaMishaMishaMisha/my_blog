@@ -9,8 +9,8 @@ class UserAddDTO(BaseModel):
     username: str = Field(min_length=5, max_length=20)
     email: EmailStr
     password: str = Field(min_length=8, max_length=50)
-    role: RoleEnum = RoleEnum.USER
-    is_active: bool = True
+    #role: RoleEnum = RoleEnum.USER
+    #is_active: bool = True
     
 # authenticating user
 class UserLoginDTO(BaseModel):
@@ -24,7 +24,7 @@ class UserPatchDTO(BaseModel):
     password: str | None = Field(default=None, min_length=8, max_length=50)
     
 class UserEmailDTO(BaseModel):
-    email: EmailStr
+    user_email: EmailStr
     
 class UserResetPasswordDTO(BaseModel):
     token: str
@@ -44,4 +44,12 @@ class UserDTO(BaseModel):
     
     model_config = {'from_attributes': True}
     
+class UserPublicProfileDTO(BaseModel):
+    username: str
+    is_verified: bool
+    created_at: datetime
+    last_seen: datetime
+    posts_count: int = 0
+    comments_count: int = 0
     
+    model_config = {'from_attributes': True}  

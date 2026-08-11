@@ -9,28 +9,61 @@ import uvicorn
 import argparse
 from source.core.logger import default_logger
 import logging
+from fastapi.middleware.cors import CORSMiddleware
+from source.cache.redis_backend import redis_backend
+from contextlib import asynccontextmanager
 
 
-app = FastAPI()
 
-app.include_router(user_router)
-app.include_router(auth_router)
-app.include_router(post_router)
-app.include_router(comment_router)
-app.include_router(upload_router)
+def create_app(with_lifespan: bool = True) -> FastAPI:
+    
+    if with_lifespan:
+        
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            await redis_backend.init_rate_limiter()
+            yield
+            await redis_backend.close()
 
-# скачивание файлов
-# пример: http://127.0.0.1:8000/uploads/filename.png
-app.mount(
-    "/uploads",
-    StaticFiles(directory="uploads"),
-    name="uploads"
-)
+        app = FastAPI(lifespan=lifespan)
+        
+    else:
+        app = FastAPI()
+        
+    app.include_router(user_router)
+    app.include_router(auth_router)
+    app.include_router(post_router)
+    app.include_router(comment_router)
+    app.include_router(upload_router)
+    
+    # скачивание файлов
+    # пример: http://127.0.0.1:8000/app/uploads/filename.png
+    app.mount(
+        "/app/uploads",
+        StaticFiles(directory="uploads"),
+        name="uploads"
+    )
+
+    # CORS - позволить фронтенду подключаться к серверу
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    return app
+
+app = create_app()
+
 
 
 
 if __name__ == "__main__":
-    print("main file")
+    print("<main file>")
     
     # параметры запуска
     parser = argparse.ArgumentParser()

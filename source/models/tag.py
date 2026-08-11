@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import text
+from sqlalchemy import text, DateTime
 from source.models.base import BaseORMModel
 from source.core.types import str_50
 from datetime import datetime
@@ -23,11 +23,13 @@ class TagModel(BaseORMModel):
     name: Mapped[str_50] = mapped_column(unique=True, index=True)
     
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"))
+        DateTime(timezone=True),
+        server_default=text("now()"))
     
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"),
-        server_onupdate=text("TIMEZONE('utc', now())"))
+        DateTime(timezone=True),
+        server_default=text("now()"),
+        server_onupdate=text("now()"))
 
 
     # список постов с этим тегом
