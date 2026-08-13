@@ -1,131 +1,232 @@
+
 <template>
-<div class="profile">
+  <div class="profile-container">
     <aside class="sidebar">
-        <button @click="activeTab = 'info'">
-            Информация
-        </button>
-        <button @click="activeTab = 'posts'">
-            Посты
-        </button>
-        <button v-if="isMyProfile" @click="activeTab = 'drafts'">
-            Черновики
-        </button>
-        <button v-if="isMyProfile" @click="activeTab = 'settings'">
-            Настройки
-        </button>
+      <button 
+        class="nav-tab" 
+        :class="{ active: activeTab === 'info' }"
+        @click="activeTab = 'info'"
+      >
+        Информация
+      </button>
+      <button 
+        class="nav-tab" 
+        :class="{ active: activeTab === 'posts' }"
+        @click="activeTab = 'posts'"
+      >
+        Посты
+      </button>
+      <button 
+        v-if="isMyProfile" 
+        class="nav-tab" 
+        :class="{ active: activeTab === 'drafts' }"
+        @click="activeTab = 'drafts'"
+      >
+        Черновики
+      </button>
+      <button 
+        v-if="isMyProfile" 
+        class="nav-tab" 
+        :class="{ active: activeTab === 'settings' }"
+        @click="activeTab = 'settings'"
+      >
+        Настройки
+      </button>
     </aside>
 
     <main class="content">
-        <template v-if="loading">
-            Загрузка...
-        </template>
+      <div v-if="loading" class="state-msg">
+        Загрузка...
+      </div>
 
-        <template v-else-if="profile">
-            <div v-if="activeTab === 'info'">
-                <h2>
-                    {{ profile.username }}
-                    <span v-if="profile.is_verified">✔</span>
-                </h2>
-                <p>Зарегистрирован: {{ formatDate(profile.created_at) }}</p>
-                <p>{{ formatLastSeen(profile.last_seen) }}</p>
-                <p>Постов: {{ profile.posts_count }}</p>
-                <p>Комментариев: {{ profile.comments_count }}</p>
+      <template v-else-if="profile">
+        <!-- Вкладка: Информация -->
+        <div v-if="activeTab === 'info'" class="tab-content">
+          <div class="user-header">
+            <h2>
+              {{ profile.username }}
+              <span v-if="profile.is_verified" class="verified-badge" title="Аккаунт подтвержден">✔</span>
+            </h2>
+            <p class="last-seen">{{ formatLastSeen(profile.last_seen) }}</p>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-card">
+              <span class="info-label">Дата регистрации</span>
+              <span class="info-value">{{ formatDate(profile.created_at) }}</span>
             </div>
+            <div class="info-card">
+              <span class="info-label">Опубликовано постов</span>
+              <span class="info-value">{{ profile.posts_count }}</span>
+            </div>
+            <div class="info-card">
+              <span class="info-label">Оставлено комментариев</span>
+              <span class="info-value">{{ profile.comments_count }}</span>
+            </div>
+          </div>
+        </div>
 
-            <div v-else-if="activeTab === 'posts'">
-                <div v-for="post in posts" :key="post.id" class="post-wrapper">
-                    <PostCard :post="post" />
-                    <div v-if="isMyProfile" class="post-actions">
-                        <button @click="editPost(post.id)">Редактировать</button>
-                        <button @click="handleDeletePost(post.id)">Удалить</button>
-                    </div>
-                </div>
-
-                <button
-                    v-if="posts.length < totalCount"
-                    @click="loadPosts(false)"
-                >
-                    Показать еще
+        <!-- Вкладка: Посты -->
+        <div v-else-if="activeTab === 'posts'" class="tab-content">
+          <div class="posts-list">
+            <div v-for="post in posts" :key="post.id" class="post-wrapper">
+              <PostCard :post="post" />
+              <div v-if="isMyProfile" class="post-actions">
+                <button class="btn btn-sm btn-outline" @click="editPost(post.id)">
+                  Редактировать
                 </button>
-            </div>
-
-            <div v-else-if="activeTab === 'drafts'">
-                <h3>Черновики</h3>
-                <div v-if="drafts.length === 0">
-                    Нет черновиков.
-                </div>
-
-                <div
-                    v-for="draft in drafts"
-                    :key="draft.id"
-                    class="draft-card"
-                >
-                    <h4>{{ draft.title || "Без названия" }}</h4>
-                    <small>{{ new Date(draft.updated_at).toLocaleString() }}</small>
-                    <div class="draft-buttons">
-                        <button @click="openDraft(draft)">
-                            Продолжить
-                        </button>
-                        <button @click="removeDraft(draft.id)">
-                            Удалить
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div v-else>
-                <h3>Настройки</h3>
-                <div>
-                    <h4>Никнейм</h4>
-                    <p>{{ auth.user?.username }}</p>
-                    <input v-model="newUsername" placeholder="Новый никнейм">
-                </div>
-
-                <div>
-                    <h4>Почта</h4>
-                    <p>{{ auth.user?.email }}</p>
-                    <input v-model="newEmail" type="email" placeholder="Новая почта">
-                </div>
-
-                <div>
-                    <h4>Пароль</h4>
-                    <input v-model="newPassword" type="password" placeholder="Новый пароль">
-                    <br>
-                    <input v-model="confirmPassword" type="password" placeholder="Подтверждение пароля">
-                </div>
-
-                <p v-if="validationError" class="error-message">
-                    {{ validationError }}
-                </p>
-
-                <button :disabled="!canSave" @click="saveSettings">
-                    Сохранить изменения
+                <button class="btn btn-sm btn-danger-outline" @click="handleDeletePost(post.id)">
+                  Удалить
                 </button>
-
-                <hr>
-
-                <div v-if="auth.user?.is_verified">
-                    ✔ Аккаунт подтвержден
-                </div>
-                <div v-else>
-                    <p>Аккаунт не подтвержден</p>
-                    <button @click="sendVerificationEmail">
-                        Отправить письмо повторно
-                    </button>
-                </div>
-
-                <hr>
-
-                <button @click="removeAccount">
-                    Удалить аккаунт
-                </button>
-
-                <p>{{ settingsMessage }}</p>
+              </div>
             </div>
-        </template>
+          </div>
+
+          <div class="pagination">
+            <button
+              v-if="posts.length < totalCount"
+              class="btn-more"
+              @click="loadPosts(false)"
+            >
+              Показать еще
+            </button>
+          </div>
+        </div>
+
+        <!-- Вкладка: Черновики -->
+        <div v-else-if="activeTab === 'drafts'" class="tab-content">
+          <h3>Черновики</h3>
+
+          <div v-if="drafts.length === 0" class="state-msg">
+            Нет черновиков.
+          </div>
+
+          <div class="drafts-list" v-else>
+            <div
+              v-for="draft in drafts"
+              :key="draft.id"
+              class="draft-card"
+            >
+              <div class="draft-info">
+                <h4>{{ draft.title || "Без названия" }}</h4>
+                <small>Изменено: {{ new Date(draft.updated_at).toLocaleString() }}</small>
+              </div>
+
+              <div class="draft-buttons">
+                <button class="btn btn-sm btn-primary" @click="openDraft(draft)">
+                  Продолжить
+                </button>
+                <button class="btn btn-sm btn-danger-outline" @click="removeDraft(draft.id)">
+                  Удалить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- Вкладка: Настройки -->
+        <div v-else-if="activeTab === 'settings'" class="tab-content settings-tab">
+          <h3>Настройки профиля</h3>
+
+          <!-- Блок 1: Смена никнейма -->
+          <div class="settings-section">
+            <div class="settings-group">
+              <label class="setting-label">Никнейм</label>
+              <div class="current-value">Текущий: <strong>{{ auth.user?.username }}</strong></div>
+              <input v-model="newUsername" class="app-input" placeholder="Новый никнейм">
+            </div>
+            <p v-if="usernameError" class="error-message">{{ usernameError }}</p>
+            <button 
+              class="btn btn-primary btn-save" 
+              :disabled="!canSaveUsername" 
+              @click="saveUsername"
+            >
+              Изменить никнейм
+            </button>
+            <p v-if="usernameMessage" :class="['settings-msg', { 'error-message': usernameHasError }]">
+              {{ usernameMessage }}
+            </p>
+          </div>
+
+          <hr class="divider">
+
+          <!-- Блок 2: Смена пароля -->
+          <div class="settings-section">
+            <div class="settings-group">
+              <label class="setting-label">Смена пароля</label>
+              <input v-model="currentPasswordForPassword" type="password" class="app-input" placeholder="Текущий пароль">
+              <input v-model="newPassword" type="password" class="app-input" placeholder="Новый пароль">
+              <input v-model="confirmNewPassword" type="password" class="app-input" placeholder="Подтверждение нового пароля">
+            </div>
+            <p v-if="passwordError" class="error-message">{{ passwordError }}</p>
+            <button 
+              class="btn btn-primary btn-save" 
+              :disabled="!canSavePassword" 
+              @click="savePassword"
+            >
+              Изменить пароль
+            </button>
+            <p v-if="passwordMessage" :class="['settings-msg', { 'error-message': passwordHasError }]">
+              {{ passwordMessage }}
+            </p>
+          </div>
+
+          <hr class="divider">
+
+          <!-- Блок 3: Смена почты -->
+          <div class="settings-section">
+            <div class="settings-group">
+              <label class="setting-label">Почта</label>
+              <div class="current-value">Текущая: <strong>{{ auth.user?.email }}</strong></div>
+              <input v-model="newEmail" type="email" class="app-input" placeholder="Новая почта">
+              <input v-model="currentPasswordForEmail" type="password" class="app-input" placeholder="Текущий пароль для подтверждения">
+            </div>
+            <p v-if="emailError" class="error-message">{{ emailError }}</p>
+            <button 
+              class="btn btn-primary btn-save" 
+              :disabled="!canSaveEmail" 
+              @click="saveEmail"
+            >
+              Изменить почту
+            </button>
+            <p v-if="emailMessage" :class="['settings-msg', { 'error-message': emailHasError }]">
+              {{ emailMessage }}
+            </p>
+          </div>
+
+          <hr class="divider">
+
+          <div class="verification-section">
+            <div v-if="auth.user?.is_verified" class="verified-status">
+              ✔ Аккаунт подтвержден
+            </div>
+            <div v-else class="unverified-status">
+              <p>Аккаунт не подтвержден</p>
+              <button class="btn btn-sm btn-outline" @click="sendVerificationEmail">
+                Отправить письмо повторно
+              </button>
+              <p v-if="verificationMessage" class="settings-msg">{{ verificationMessage }}</p>
+            </div>
+          </div>
+
+          <hr class="divider">
+
+          <div class="danger-zone">
+            <button class="btn btn-danger" @click="removeAccount">
+              Удалить аккаунт
+            </button>
+            <p v-if="dangerMessage" class="settings-msg error-message">{{ dangerMessage }}</p>
+          </div>
+        </div>
+        
+      </template>
     </main>
-</div>
+  </div>
 </template>
+
+
+
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
@@ -135,11 +236,15 @@ import { useAuthStore } from "@/stores/auth";
 import {
     getPublicProfile,
     getUserPosts,
-    updateCurrentUser,
+    updateUsername,
+    updatePassword,
+    updateEmail,
     deleteCurrentUser,
     resendVerificationEmail,
 } from "@/api/users";
-import { deletePost } from "@/api/posts"; // Импортируйте deletePost из вашего API постов
+import { deletePost } from "@/api/posts";
+
+import { getCurrentUserId } from "@/api/auth";
 
 import PostCard from "@/components/PostCard.vue";
 
@@ -156,52 +261,92 @@ const offset = ref(0);
 const activeTab = ref("info");
 const drafts = ref<any[]>([]);
 
+// Поля для формы никнейма
 const newUsername = ref("");
-const newEmail = ref("");
+
+// Поля для формы пароля
+const currentPasswordForPassword = ref("");
 const newPassword = ref("");
-const confirmPassword = ref("");
-const settingsMessage = ref("");
+const confirmNewPassword = ref("");
 
-const validationError = computed(() => {
-    if (newUsername.value) {
-        if (newUsername.value.length < 5 || newUsername.value.length > 20) {
-            return "Длина никнейма должна быть от 5 до 20 симво символов.";
-        }
+// Поля для формы почты
+const newEmail = ref("");
+const currentPasswordForEmail = ref("");
+
+// Сообщения и статусы для каждого блока отдельно
+const usernameMessage = ref("");
+const usernameHasError = ref(false);
+
+const passwordMessage = ref("");
+const passwordHasError = ref(false);
+
+const emailMessage = ref("");
+const emailHasError = ref(false);
+
+const verificationMessage = ref("");
+const dangerMessage = ref("");
+
+//const settingsMessage = ref("");
+
+// Валидация для никнейма
+const usernameError = computed(() => {
+    if (!newUsername.value) return "";
+    if (newUsername.value === auth.user?.username) return "Новый никнейм совпадает с текущим.";
+    if (newUsername.value.length < 5 || newUsername.value.length > 20) {
+        return "Длина никнейма должна быть от 5 до 20 символов.";
     }
-
-    if (newEmail.value) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(newEmail.value)) {
-            return "Введите корректный email адрес.";
-        }
-    }
-
-    if (newPassword.value || confirmPassword.value) {
-        if (newPassword.value.length < 8 || newPassword.value.length > 50) {
-            return "Длина пароля должна быть от 8 до 50 символов.";
-        }
-        if (newPassword.value !== confirmPassword.value) {
-            return "Пароли не совпадают.";
-        }
-    }
-
     return "";
 });
 
-const isAnyFieldFilled = computed(() => {
+const canSaveUsername = computed(() => {
+    return Boolean(newUsername.value) && usernameError.value === "" && newUsername.value !== auth.user?.username;
+});
+
+// Валидация для пароля
+const passwordError = computed(() => {
+    if (!newPassword.value && !currentPasswordForPassword.value && !confirmNewPassword.value) return "";
+    if (!currentPasswordForPassword.value) return "Введите текущий пароль.";
+    if (newPassword.value.length < 8 || newPassword.value.length > 50) {
+        return "Длина пароля должна быть от 8 до 50 символов.";
+    }
+    if (newPassword.value !== confirmNewPassword.value) {
+        return "Пароли не совпадают.";
+    }
+    return "";
+});
+
+const canSavePassword = computed(() => {
     return Boolean(
-        newUsername.value ||
-        newEmail.value ||
-        newPassword.value ||
-        confirmPassword.value
+        currentPasswordForPassword.value &&
+        newPassword.value &&
+        confirmNewPassword.value &&
+        passwordError.value === ""
     );
 });
 
-const canSave = computed(() => {
-    return isAnyFieldFilled.value && validationError.value === "";
+// Валидация для почты
+const emailError = computed(() => {
+    if (!newEmail.value && !currentPasswordForEmail.value) return "";
+    if (newEmail.value === auth.user?.email) return "Новая почта совпадает с текущей.";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (newEmail.value && !emailRegex.test(newEmail.value)) {
+        return "Введите корректный email адрес.";
+    }
+    if (!currentPasswordForEmail.value) return "Введите текущий пароль для подтверждения.";
+    return "";
 });
 
-const DRAFTS_KEY = "post_drafts";
+const canSaveEmail = computed(() => {
+    return Boolean(
+        newEmail.value &&
+        currentPasswordForEmail.value &&
+        emailError.value === "" &&
+        newEmail.value !== auth.user?.email
+    );
+});
+
+const userId = getCurrentUserId();
+const DRAFTS_KEY = userId ? `post_drafts_${userId}` : "post_drafts_guest";
 
 function loadDrafts() {
     const data = JSON.parse(localStorage.getItem(DRAFTS_KEY) ?? "{}");
@@ -259,53 +404,91 @@ async function loadPosts(reset = true) {
     offset.value += limit;
 }
 
-async function saveSettings() {
-    if (!canSave.value) return;
-
-    settingsMessage.value = "";
-    const data: any = {};
-
-    if (newUsername.value && newUsername.value !== auth.user?.username) {
-        data.username = newUsername.value;
-    }
-
-    if (newEmail.value && newEmail.value !== auth.user?.email) {
-        data.email = newEmail.value;
-    }
-
-    if (newPassword.value) {
-        data.password = newPassword.value;
-    }
-
-    if (Object.keys(data).length === 0) {
-        settingsMessage.value = "Нет изменений.";
-        return;
-    }
+// Отдельные функции сохранения для каждой секции
+async function saveUsername() {
+    if (!canSaveUsername.value) return;
+    usernameMessage.value = "";
+    usernameHasError.value = false;
 
     try {
-        const user = await updateCurrentUser(data);
+        const user = await updateUsername({ username: newUsername.value });
         auth.setUser(user);
-        settingsMessage.value = "Изменения сохранены.";
+        usernameMessage.value = "Никнейм успешно изменен.";
         newUsername.value = "";
-        newEmail.value = "";
-        newPassword.value = "";
-        confirmPassword.value = "";
-
-        if (data.username) {
-            router.replace(`/users/${user.username}`);
-        }
+        router.replace(`/users/${user.username}`);
     } catch (error: any) {
-        settingsMessage.value =
-            error.response?.data?.detail ?? "Не удалось сохранить изменения.";
+        usernameHasError.value = true;
+        usernameMessage.value =
+            error.response?.data?.detail ?? "Не удалось изменить никнейм.";
+    }
+}
+
+// Сохранение пароля
+async function savePassword() {
+    if (!canSavePassword.value) return;
+    passwordMessage.value = "";
+    passwordHasError.value = false;
+
+    try {
+        await updatePassword({
+            current_password: currentPasswordForPassword.value,
+            new_password: newPassword.value,
+        });
+        passwordMessage.value = "Пароль успешно изменен.";
+        currentPasswordForPassword.value = "";
+        newPassword.value = "";
+        confirmNewPassword.value = "";
+    } catch (error: any) {
+        passwordHasError.value = true;
+        const status = error.response?.status;
+        if (status === 401) {
+            passwordMessage.value = "Неверный текущий пароль.";
+        } else if (status === 404) {
+            passwordMessage.value = "Пользователь не найден.";
+        } else {
+            passwordMessage.value =
+                error.response?.data?.detail ?? "Не удалось изменить пароль.";
+        }
+    }
+}
+
+// Сохранение почты
+async function saveEmail() {
+    if (!canSaveEmail.value) return;
+    emailMessage.value = "";
+    emailHasError.value = false;
+
+    try {
+        const user = await updateEmail({
+            new_email: newEmail.value,
+            confirm_password: currentPasswordForEmail.value,
+        });
+        auth.setUser(user);
+        emailMessage.value = "Почта успешно изменена. Проверьте почту для подтверждения.";
+        newEmail.value = "";
+        currentPasswordForEmail.value = "";
+    } catch (error: any) {
+        emailHasError.value = true;
+        const status = error.response?.status;
+        if (status === 401) {
+            emailMessage.value = "Неверный текущий пароль.";
+        } else if (status === 400) {
+            emailMessage.value = "Эта почта уже занята.";
+        } else if (status === 404) {
+            emailMessage.value = "Пользователь не найден.";
+        } else {
+            emailMessage.value =
+                error.response?.data?.detail ?? "Ошибка сервера при смене почты.";
+        }
     }
 }
 
 async function sendVerificationEmail() {
     try {
         const response = await resendVerificationEmail();
-        settingsMessage.value = response.message;
+        verificationMessage.value = response.message;
     } catch (error: any) {
-        settingsMessage.value =
+        verificationMessage.value =
             error.response?.data?.detail ?? "Ошибка.";
     }
 }
@@ -320,7 +503,7 @@ async function removeAccount() {
         auth.logout();
         router.push("/");
     } catch (error: any) {
-        settingsMessage.value =
+        dangerMessage.value =
             error.response?.data?.detail ?? "Не удалось удалить аккаунт.";
     }
 }
@@ -376,52 +559,339 @@ watch(
 onMounted(loadProfile);
 </script>
 
+
+
+
 <style scoped>
-.profile {
-    display: flex;
-    gap: 30px;
-    padding: 20px;
+.profile-container {
+  display: flex;
+  gap: 30px;
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 0 15px;
 }
 
+/* Sidebar Styling */
 .sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 200px;
+  flex-shrink: 0;
 }
 
-.sidebar button {
-    padding: 10px;
+.nav-tab {
+  padding: 10px 16px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
+.nav-tab:hover {
+  background-color: #f0f7ff;
+  color: #1976d2;
+}
+
+.nav-tab.active {
+  background-color: #1976d2;
+  color: #ffffff;
+}
+
+/* Main Content */
 .content {
-    flex: 1;
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
 }
 
-.error-message {
-    color: red;
+.tab-content h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #2c3e50;
+  font-size: 20px;
+}
+
+.state-msg {
+  text-align: center;
+  color: #666;
+  padding: 30px 0;
+}
+
+/* Info Tab */
+.user-header {
+  margin-bottom: 24px;
+}
+
+.user-header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #2c3e50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.verified-badge {
+  color: #1976d2;
+  font-size: 18px;
+}
+
+.last-seen {
+  color: #888;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.info-card {
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-label {
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+/* Posts Tab */
+.posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .post-wrapper {
-    margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
 .post-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  margin-top: -6px;
+  padding: 10px 16px;
+  background: #fafafa;
+  border: 1px solid #eaeaea;
+  border-top: none;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 25px;
+}
+
+/* Drafts Tab */
+.drafts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .draft-card {
-    border: 1px solid #ddd;
-    padding: 12px;
-    margin-bottom: 12px;
-    border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.draft-card:hover {
+  border-color: #d0e3f7;
+}
+
+.draft-info h4 {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+  color: #2c3e50;
+}
+
+.draft-info small {
+  color: #888;
 }
 
 .draft-buttons {
-    display: flex;
-    gap: 10px;
-    margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+/* Settings Tab */
+.settings-tab {
+  max-width: 500px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.setting-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2c3e50;
+}
+
+.current-value {
+  font-size: 13px;
+  color: #666;
+}
+
+.app-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.app-input:focus {
+  border-color: #1976d2;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
+}
+
+.app-input + .app-input {
+  margin-top: 8px;
+}
+
+.error-message {
+  color: #d32f2f;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 24px 0;
+}
+
+.verified-status {
+  color: #2e7d32;
+  font-weight: 500;
+}
+
+.unverified-status p {
+  margin: 0 0 8px 0;
+  color: #d32f2f;
+}
+
+.settings-msg {
+  margin-top: 16px;
+  font-size: 14px;
+  color: #1976d2;
+}
+
+/* Buttons System */
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.btn-primary {
+  background-color: #1976d2;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #1565c0;
+}
+
+.btn-primary:disabled {
+  background-color: #90caf9;
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  background-color: transparent;
+  border-color: #ccc;
+  color: #444;
+}
+
+.btn-outline:hover {
+  background-color: #f5f5f5;
+  border-color: #bbb;
+}
+
+.btn-danger-outline {
+  background-color: transparent;
+  border-color: #ffcdd2;
+  color: #d32f2f;
+}
+
+.btn-danger-outline:hover {
+  background-color: #ffebee;
+}
+
+.btn-danger {
+  background-color: #d32f2f;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #c62828;
+}
+
+.btn-more {
+  padding: 10px 24px;
+  background-color: #fff;
+  border: 1px solid #1976d2;
+  color: #1976d2;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-more:hover {
+  background-color: #1976d2;
+  color: #fff;
 }
 </style>

@@ -1,6 +1,10 @@
 import { EthernetPortIcon } from "lucide-vue-next";
 import api from "./axios";
 
+
+// Ключ для хранения ID текущего пользователя
+const CURRENT_USER_ID_KEY = "current_user_id";
+
 export interface RegisterRequest {
     username: string;
     email: string;
@@ -10,6 +14,10 @@ export interface RegisterRequest {
 export interface LoginRequest {
     login: string;
     password: string;
+}
+
+export function getCurrentUserId(): string | null {
+    return localStorage.getItem(CURRENT_USER_ID_KEY);
 }
 
 export async function register(data: RegisterRequest) {
@@ -40,7 +48,12 @@ export async function login(data: LoginRequest) {
 }
 
 export async function logout() {
-    await api.post("/auth/logout");
+    try {
+        await api.post("/auth/logout");
+    } finally {
+        // Удаляем ID пользователя при выходе (даже если запрос на сервер упал)
+        localStorage.removeItem(CURRENT_USER_ID_KEY);
+    }
 }
 
 export async function refresh() {
@@ -51,6 +64,10 @@ export async function refresh() {
 
 export async function getCurrentUser() {
     const response = await api.get("/users/me");
+
+    if (response.data && response.data.id) {
+        localStorage.setItem(CURRENT_USER_ID_KEY, String(response.data.id));
+    }
 
     return response.data;
 }

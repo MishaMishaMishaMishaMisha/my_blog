@@ -1,14 +1,20 @@
 <template>
   <div class="search-page">
-    <h2>
-      <template v-if="tagParam">Посты по тегу: #{{ tagParam }}</template>
-      <template v-else-if="titleParam">Поиск по запросу: "{{ titleParam }}"</template>
-      <template v-else>Результаты поиска</template>
-    </h2>
+    <div class="search-header">
+      <h2>
+        <template v-if="tagParam">Посты по тегу: #{{ tagParam }}</template>
+        <template v-else-if="titleParam">Поиск по запросу: "{{ titleParam }}"</template>
+        <template v-else>Результаты поиска</template>
+      </h2>
 
-    <div v-if="loading">Поиск постов...</div>
+      <div v-if="!loading && posts.length > 0" class="total-count">
+        Найдено постов: <strong>{{ totalCount }}</strong>
+      </div>
+    </div>
 
-    <div v-else-if="posts.length === 0">
+    <div v-if="loading" class="state-msg">Поиск постов...</div>
+
+    <div v-else-if="posts.length === 0" class="state-msg">
       По вашему запросу ничего не найдено.
     </div>
 
@@ -19,18 +25,22 @@
         :post="post"
       />
 
-      <!-- Кнопка «Показать ещё» для результатов поиска -->
-      <button
-        v-if="hasMore"
-        class="load-more-btn"
-        :disabled="loadingMore"
-        @click="loadMore"
-      >
-        {{ loadingMore ? 'Загрузка...' : 'Показать ещё' }}
-      </button>
+      <div class="pagination">
+        <button
+          v-if="hasMore"
+          class="btn-more"
+          :disabled="loadingMore"
+          @click="loadMore"
+        >
+          {{ loadingMore ? 'Загрузка...' : 'Показать ещё' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
+
+
+
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
@@ -104,16 +114,73 @@ onMounted(() => {
 });
 </script>
 
+
+
+
 <style scoped>
+.search-page {
+  max-width: 800px;
+  margin: 30px auto;
+  padding: 0 15px;
+}
+
+.search-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #2c3e50;
+}
+
+.total-count {
+  font-size: 14px;
+  color: #666;
+}
+
+.state-msg {
+  text-align: center;
+  color: #666;
+  margin: 40px 0;
+  font-size: 16px;
+}
+
 .posts-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin-top: 20px;
 }
-.load-more-btn {
-  margin: 10px auto;
-  padding: 8px 16px;
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 25px;
+}
+
+.btn-more {
+  padding: 10px 24px;
+  background-color: #fff;
+  border: 1px solid #1976d2;
+  color: #1976d2;
+  font-weight: 500;
+  border-radius: 8px;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-more:hover:not(:disabled) {
+  background-color: #1976d2;
+  color: #fff;
+}
+
+.btn-more:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

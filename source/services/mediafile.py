@@ -46,6 +46,7 @@ class MediaFileService:
 
                 model = AttachmentMediaModel(
                     user_id=user_id,
+                    orig_name=file.filename,
                     filename=saved.filename,
                     size=saved.size,
                     mime_type=saved.mime_type,
@@ -78,35 +79,6 @@ class MediaFileService:
                 raise
 
             raise FileAddingException(str(e))
-
-    # async def add_file(self, file: UploadFile, user_id: UUID) -> AttachmentDTO:
-
-    #     if file.content_type not in ALLOWED_FILE_TYPES:
-    #         raise NotAllowedFileTypeException("File type is unsupperted")
-
-    #     try:
-    #         saved_file = self.storage.save(file)
-    #         default_logger.info("Uploading file: file saved in storage")
-
-    #         model = AttachmentMediaModel(
-    #             user_id=user_id,
-    #             filename=saved_file.filename,
-    #             size=saved_file.size,
-    #             mime_type=saved_file.mime_type,
-    #             file_type=saved_file.file_type)
-
-    #         self.mediafile_repo.add_file(model)
-            
-    #         await self.mediafile_repo.make_commit()
-            
-    #         return AttachmentDTO.model_validate(model)
-    #         #return model
-
-    #     except FileWritingException as e:
-
-    #         self.storage.delete(saved_file.filename)
-
-    #         raise FileAddingException(str(e))
         
     async def delete_file(self, file_id: UUID):
         deleted_filename = await self.mediafile_repo.delete_file(file_id)
@@ -121,7 +93,7 @@ class MediaFileService:
         deleted_temp_filenames = await self.mediafile_repo.delete_temp_files()
         
         if deleted_temp_filenames:
-            default_logger.info(f"Deleting temp files: found {len(self.delete_temp_files)} temp files")
+            default_logger.info(f"Deleting temp files: found {len(deleted_temp_filenames)} temp files")
             
             for fname in deleted_temp_filenames:
                 self.storage.delete(fname)

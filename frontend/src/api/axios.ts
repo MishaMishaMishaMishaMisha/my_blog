@@ -9,7 +9,9 @@ const noRefreshEndpoints = [
     "/auth/verify-email",
     "/auth/forgot-password",
     "/auth/reset-password",
-    "/users/register"
+    "/users/register",
+    "/users/me/password",
+    "/users/me/email"
 ];
 
 
@@ -83,7 +85,20 @@ api.interceptors.response.use(
 
 
         // ==========================================
-        // 1. ОБРАБОТКА 401 (истек access token)
+        // 2. ОБРАБОТКА 429 (Слишком много попыток сделать один и тот же запрос)
+        // ==========================================
+        if (error.response?.status === 429) {
+            const detail = error.response.data?.detail;
+
+            //alert(detail || "Доступ запрещен.");
+            alert("Вы превысили лимит запросов. Попробуйте позже");
+
+            return Promise.reject(error);
+        }
+
+
+        // ==========================================
+        // 3. ОБРАБОТКА 401 (истек access token)
         // ==========================================
         if (error.response?.status !== 401) {
             return Promise.reject(error);

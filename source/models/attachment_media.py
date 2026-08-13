@@ -33,7 +33,10 @@ class AttachmentMediaModel(BaseORMModel):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), 
                                                index=True)
 
-    filename: Mapped[str] # не url. пример cat.png
+    # оригинальное имя файла. пример # cat.png
+    orig_name: Mapped[str] = mapped_column(nullable=True)
+
+    filename: Mapped[str] # имя с присвоенным id. не url. пример 1234_cat.png
     
     # video or image
     file_type: Mapped[FileTypeEnum] = mapped_column(SQLEnum(FileTypeEnum, native_enum=False))

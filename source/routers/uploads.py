@@ -22,6 +22,19 @@ from source.dependencies.rate_limit import upload_limiter
 router = APIRouter(prefix="/upload", tags=["Uploads"])
 
 
+
+# from source.tasks.delete_mediafiles_task import delete_temp_files, sync_Files_in_Storage_and_in_DB
+# @router.post("/test-delete-temp-files")
+# async def delete_temp():
+#     delete_temp_files.delay()
+
+# @router.post("/test-sync-files")
+# async def sync_files():
+#     sync_Files_in_Storage_and_in_DB.delay()
+
+
+
+
 @router.post("/multiple", 
              response_model=Sequence[AttachmentDTO],
              dependencies=[Depends(upload_limiter)])
@@ -80,19 +93,18 @@ async def upload_file(file: UploadFile = File(...),
     
     except (FileWritingException, FileAddingException) as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+
+# старые файлы удалятся автоматически через некоторое время
 # @router.delete("/{file_id}")
 # async def delete_file(file_id: UUID, 
-#                  mediafile_service: MediaFileService = Depends(get_mediafile_service)):
+#                  mediafile_service: MediaFileService = Depends(get_mediafile_service)) -> dict:
 
-#     try:
-#         default_logger.info("Deleting file: trying")
-        
-#         await mediafile_service.delete_file(file_id)
-#         default_logger.info("Deleting file: file deleted")
-#         return {"message": "file deleted successfully"}
+#     default_logger.info("Deleting file from storage: trying")
     
-#     except FileNotFoundException as e:
-#         raise HTTPException(status_code=404, detail=str(e))
+#     await mediafile_service.delete_file_from_storage(file_id)
+#     default_logger.info("Deleting file from storage: file deleted")
+#     return {"message": "file deleted successfully"}
+    
 
 

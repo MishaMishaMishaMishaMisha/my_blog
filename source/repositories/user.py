@@ -26,6 +26,9 @@ class UserRepository:
     async def make_commit(self):
         await self.db_session.commit()
         
+    async def make_rollback(self):
+        await self.db_session.rollback()
+        
     async def add_user(self, new_user: UserAddDTO, hashed_password: str) -> UserModel:
         default_logger.debug("Adding new user: CREATING USER MODEL")
         
@@ -183,6 +186,7 @@ class UserRepository:
             # ничего не меняем
             return await self.get_user(user_id)
         
+        
         # достаем пользователя
         default_logger.debug("Updating user: getting user from db")
         user_model = await self.get_user(user_id)
@@ -197,14 +201,6 @@ class UserRepository:
                 if existing_username:
                     default_logger.error("Updating user: ERROR. USERNAME ALREADY IN DB")
                     raise UsernameAlreadyExsistsException("such username already in db")
-            
-            if key=="email":
-                existing_email = await self.get_user_by(email=value)
-                if existing_email:
-                    default_logger.error("Updating user: ERROR. EMAIL ALREADY IN DB")
-                    raise EmailAlreadyExsistsException("such email already in db")
-                
-                user_model.is_verified = False
             
             setattr(user_model, key, value)
         

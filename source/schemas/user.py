@@ -9,19 +9,26 @@ class UserAddDTO(BaseModel):
     username: str = Field(min_length=5, max_length=20)
     email: EmailStr
     password: str = Field(min_length=8, max_length=50)
-    #role: RoleEnum = RoleEnum.USER
-    #is_active: bool = True
     
 # authenticating user
 class UserLoginDTO(BaseModel):
     login: str = Field(..., description="username or email")
     password: str
     
-# updating user
+# updating user's fields except password and email
 class UserPatchDTO(BaseModel):
     username: str | None = Field(default=None, min_length=5, max_length=20)
-    email: EmailStr | None = Field(default=None)
-    password: str | None = Field(default=None, min_length=8, max_length=50)
+    # other fields...
+    
+# update user's password
+class UserPatchPassword(BaseModel):
+    current_password: str = Field(min_length=8, max_length=50)
+    new_password: str = Field(min_length=8, max_length=50)
+
+# update user's email
+class UserPatchEmail(BaseModel):
+    new_email: EmailStr
+    confirm_password: str = Field(min_length=8, max_length=50)
     
 class UserEmailDTO(BaseModel):
     user_email: EmailStr

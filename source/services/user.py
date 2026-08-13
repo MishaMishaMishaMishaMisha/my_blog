@@ -2,13 +2,20 @@ from source.repositories.user import UserRepository
 from source.models.user import UserModel
 from source.models.post import PostModel
 from source.models.comment import CommentModel
-from source.schemas.user import UserAddDTO, UserPatchDTO, UserPublicProfileDTO
+from source.schemas.user import (UserAddDTO, 
+                                 UserPatchDTO, 
+                                 UserPatchPassword,
+                                 UserPatchEmail,
+                                 UserPublicProfileDTO)
 from source.schemas.post import PostPreviewDTO, PostListDTO
 from source.core.exceptions import (UsernameAlreadyExsistsException, 
                                     EmailAlreadyExsistsException,
-                                    UserNotFoundException)
+                                    UserNotFoundException,
+                                    InvalidCredentialsException,
+                                    UserException)
+from sqlalchemy.exc import IntegrityError
 from source.core.logger import default_logger
-from source.core.security import hash_password
+from source.core.security import hash_password, verify_password
 from uuid import UUID
 from typing import Sequence, Set
 from enum import Enum
@@ -99,11 +106,6 @@ class UserService:
         return [UserDTO.model_validate(db_user) for db_user in db_users]
     
     async def update_user(self, user_id: UUID, user_data: UserPatchDTO) -> UserDTO:
-        password = user_data.password
-        if password is not None:
-            default_logger.debug("Updating user: hashing new password")
-            hashed_password = hash_password(password)
-            user_data.password = hashed_password
         
         user_db = await self.user_repo.update_user(user_id, user_data)
         
@@ -111,6 +113,41 @@ class UserService:
         await self.cache_redis.delete(key=self.cache_user_key.format(username=user_db.username))
         
         return UserDTO.model_validate(user_db)
+    
+    async def update_password(self, user_id: UUID, password_data: UserPatchPassword) -> None:
+        
+        user = await self.user_repo.get_user(user_id)
+        
+        if not verify_password(password_data.current_password, user.password_hash):
+            raise InvalidCredentialsException("Incorrect password")
+        
+        user.password_hash = hash_password(password_data.new_password)
+        
+        await self.user_repo.make_commit()
+        
+    async def update_email(self, user_id: UUID, email_data: UserPatchEmail) -> None:
+        
+        user = await self.user_repo.get_user(user_id)
+        
+        if not verify_password(email_data.confirm_password, user.password_hash):
+            raise InvalidCredentialsException("Incorrect password")
+        
+        user.email = email_data.new_email
+        
+        user.is_verified = False
+        
+        try:
+            await self.user_repo.make_commit()
+            
+        except IntegrityError as e:
+            await self.user_repo.make_rollback()
+            
+            msg = str(e.orig)
+
+            if 'ix_users_email' in msg:
+                raise EmailAlreadyExsistsException("such email already taken")
+
+            raise UserException(str(e))
     
     async def find_user_by_name(self, seacrhing_name: str,
                                 include: Set[UserLoadRelations] | None = None) -> Sequence[UserDTO]:

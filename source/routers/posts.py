@@ -88,8 +88,6 @@ async def get_posts(limit: LIMIT_QUERY = 10,
                                        sort, period,
                                        include={PostLoadRelations.TAGS})
     
-    print("!!!!!!! total count=", posts_list.total_count)
-    
     return posts_list
 
 # add reaction to post
@@ -143,7 +141,7 @@ async def find_posts(
             dependencies=[Depends(find_tags_limiter)])
 async def find_tags(
             name: Annotated[str, Query(..., 
-                                        min_length=3, 
+                                        min_length=2, 
                                         max_length=50, 
                                         title="searching tag")],
             post_service: PostService = Depends(get_post_service)) -> Sequence[TagDTO]:
@@ -156,7 +154,7 @@ async def find_tags(
             dependencies=[Depends(find_posts_with_tag_limiter)])
 async def get_posts_with_tag(
             tag: Annotated[str, Query(..., 
-                                        min_length=3, 
+                                        min_length=2, 
                                         max_length=50, 
                                         title="searching posts with tag")], 
             limit: LIMIT_QUERY = 10, 

@@ -4,6 +4,7 @@ from httpx import AsyncClient
 from sqlalchemy import select, text, delete
 from uuid import UUID
 import pytest
+from source.core.security import hash_password, verify_password
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -109,39 +110,103 @@ class TestUser:
         deleted_user = res.scalar_one_or_none()
         assert deleted_user is None
         
-    @pytest.mark.parametrize(
-        "patch_user_data, updated_keys",
-        [
-            ({"username": "newusername"}, 
-             ["username"]),
-            ({"password": "newsecretpassword"}, 
-             ["password"]),
-            ({"email": "newmail@gmail.com"}, 
-             ["email"]),
-            ({"username": "newusernameagain", "password": "rekgjlntgkblrn"}, 
-             ["username", "password"]),
-            ({"username": "hkvblnbgb", "password": "ekjgvnlgreg", "email": "mymail@gmail.com"},
-             ["username", "password", "email"]),
-            ({}, [])
-        ]
-    )
-    async def test_update_user(self,
-                               patch_user_data,
-                               updated_keys,
+    async def test_update_username(self,
+                               users_factory,
                                authenticated_user,
                                async_client: AsyncClient):
         
+        # пользователь с указанным никнеймом
+        existing_usernme = "randomusername123"
+        other_user = await users_factory(count=1, username=existing_usernme)
+        
+        data = {"username": "newnickname"}
         
         response = await async_client.patch(
                         "/users/me", 
-                        json=patch_user_data,
+                        json=data,
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
         assert response.status_code == 200
         updated_user = response.json()
-        for key in updated_keys:
-            if key != "password": # пароль не возвращается в ответе
-                assert patch_user_data[key] == updated_user[key]
+        assert updated_user["username"] == "newnickname"
+        
+        # смена имени на уже сущестующее
+        data["username"] = existing_usernme
+        response = await async_client.patch(
+                        "/users/me", 
+                        json=data,
+                        headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
+        
+        assert response.status_code == 400
+        
+
+    async def test_update_email(self,
+                               users_factory,
+                               authenticated_users,
+                               async_client: AsyncClient):
+        
+        # пользователь с указанной почтой
+        existing_email = "randomemail3123213@gmail.com"
+        other_user = await users_factory(count=1, email=existing_email)
+        
+        # тестируемый пользователь
+        password = "12345678"
+        hash = hash_password(password)
+        user = (await authenticated_users(count=1, password_hash=hash))[0]
+        
+        data = {"confirm_password": password, "new_email": "newemail321@gmail.com"}
+        
+        response = await async_client.patch(
+                        "/users/me/email", 
+                        json=data,
+                        headers={"Authorization": f"Bearer {user["access_token"]}"})
+        
+        assert response.status_code == 200
+        
+        # смена почты на уже сущестующее
+        data["new_email"] = existing_email
+        response = await async_client.patch(
+                        "/users/me/email", 
+                        json=data,
+                        headers={"Authorization": f"Bearer {user["access_token"]}"})
+        
+        assert response.status_code == 400
+    
+    async def test_update_password(self,
+                               authenticated_users,
+                               db_session: AsyncSession, 
+                               async_client: AsyncClient):
+    
+
+        password = "12345678"
+        hash = hash_password(password)
+        new_password = "qwerty12345"
+        new_hash = hash_password(new_password)
+        
+        user = (await authenticated_users(count=1, password_hash=hash))[0]
+        
+        data = {"current_password": password, "new_password": new_password}
+        
+        response = await async_client.patch(
+                        "/users/me/password", 
+                        json=data,
+                        headers={"Authorization": f"Bearer {user["access_token"]}"})
+        
+        assert response.status_code == 200
+        
+        # проверяем что пароль поменялся
+        response = await async_client.post("/auth/login", data={"username": user["user"].username,
+                                                                "password": new_password})
+        assert response.status_code == 200
+        
+        # смена пароля с указанием неверного текущего
+        data["current_password"] = "ghi45oyt94ogh48oth4goh"
+        response = await async_client.patch(
+                        "/users/me/password", 
+                        json=data,
+                        headers={"Authorization": f"Bearer {user["access_token"]}"})
+        
+        assert response.status_code == 401
 
     @pytest.mark.parametrize(
         "query_params, expected_status, result_len", 

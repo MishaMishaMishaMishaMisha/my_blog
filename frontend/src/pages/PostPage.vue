@@ -1,168 +1,118 @@
 <template>
-
-<div
-    v-if="post"
->
-
-    <h1>
-
-        {{ post.title }}
-
-    </h1>
-
-    <div
-        v-if="auth.user?.id === post.author_id"
-        class="actions"
-    >
-
-        <button
-            @click="editPost"
-        >
-
+  <div class="post-page-container">
+    <div v-if="post" class="post-card">
+      
+      <!-- Заголовок и Авторизованные Действия -->
+      <div class="post-header">
+        <h1 class="post-title">{{ post.title }}</h1>
+        <div v-if="auth.user?.id === post.author_id" class="post-actions">
+          <button class="btn btn-sm btn-outline" @click="editPost">
             Редактировать
-
-        </button>
-
-        <button
-            @click="removePost"
-        >
-
+          </button>
+          <button class="btn btn-sm btn-danger-outline" @click="removePost">
             Удалить
+          </button>
+        </div>
+      </div>
 
-        </button>
-
-    </div>
-
-    <p>
-
-        {{ formatDate(post.created_at) }}
-
-    </p>
-
-    <p>
-
-        Автор
-
-        <span
-            class="author"
-            @click="openAuthor"
-        >
-
-            {{ post.author_username }}
-
+      <!-- Мета-информация -->
+      <div class="post-meta">
+        <span class="author" @click="openAuthor">
+          👤 {{ post.author_username }}
         </span>
+        <span class="bullet">•</span>
+        <span class="created-at">{{ formatDate(post.created_at) }}</span>
+      </div>
 
-    </p>
+      <!-- Теги -->
+      <div v-if="post.tags?.length" class="tags-container">
+        <span
+          v-for="tag in post.tags"
+          :key="tag.id"
+          class="tag-badge"
+          @click.stop="goToTag(tag.name)"
+        >
+          #{{ tag.name }}
+        </span>
+      </div>
 
+      <hr class="divider">
 
-    <div class="tags">
-    <span
-        v-for="tag in post.tags"
-        :key="tag.id"
-        class="tag-badge"
-        @click.stop="goToTag(tag.name)"
-    >
-        #{{ tag.name }}
-    </span>
-    </div>
+      <!-- Тело поста -->
+      <div class="post-body" v-html="renderBody"></div>
 
+      <hr class="divider">
 
-    <hr>
-
-    <div
-        v-html="renderBody"
-    ></div>
-
-    <hr>
-
-    <div class="reactions">
-
-        <div
-            v-for="(icon,type) in reactionIcons"
+      <!-- Статистика и реакций -->
+      <div class="post-footer">
+        <div class="reactions">
+          <div
+            v-for="(icon, type) in reactionIcons"
             :key="type"
             class="reaction"
-            :class="{
-                active:
-                    post?.user_reaction===type
-            }"
+            :class="{ active: post?.user_reaction === type }"
             @click="react(type)"
-        >
-
-            {{ icon }}
-
-            {{ post?.reactions[type] ?? 0 }}
-
+          >
+            <span>{{ icon }}</span>
+            <span>{{ post?.reactions[type] ?? 0 }}</span>
+          </div>
         </div>
 
-    </div>
+        <div class="stats">
+          <span>👁 {{ post.views_count }}</span>
+          <span>💬 {{ post.comments_count }}</span>
+        </div>
+      </div>
 
-    <br>
+      <!-- Раздел комментариев -->
+      <section class="comments-section">
+        <h2 class="comments-title">Комментарии ({{ post?.comments_count ?? 0 }})</h2>
 
-    <div>
+        <div class="main-editor-wrapper">
+          <CommentEditor
+            v-if="auth.user"
+            :post-id="post.id"
+            @created="onCommentCreated"
+          />
+          <div v-else class="auth-notice">
+            Чтобы оставить комментарий, <router-link to="/login">авторизуйтесь</router-link>.
+          </div>
+        </div>
 
-        👁
-
-        {{ post.views_count }}
-
-        •
-
-        💬
-
-        {{ post.comments_count }}
-
-    </div>
-
-    <hr>
-
-    <h2>Комментарии ({{ post?.comments_count ?? 0 }})</h2>
-
-    <button
-    v-if="post.comments_count > 0 && !commentsVisible"
-    @click="loadComments"
-    >
-    {{ loadingComments ? 'Загрузка...' : 'Показать комментарии' }}
-    </button>
-
-    <CommentEditor
-        v-if="auth.user"
-        :post-id="post.id"
-        @created="onCommentCreated"
-    />
-    <div v-else>
-        Чтобы оставить комментарий, необходимо авторизоваться.
-    </div>
-
-    <div v-if="commentsVisible" class="comments-list">
-        <CommentItem
-        v-for="comment in comments"
-        :key="comment.id"
-        :comment="comment"
-        :auth-store="auth"
-        @deleted="onCommentDeleted"
-        />
-
-        <!-- Кнопка подгрузки новых комментариев -->
         <button
-            v-if="hasMoreComments"
-            class="btn-load-more"
-            :disabled="loadingMoreComments"
-            @click="loadMoreComments"
+          v-if="post.comments_count > 0 && !commentsVisible"
+          class="btn btn-outline btn-show-comments"
+          @click="loadComments"
         >
-            {{ loadingMoreComments ? 'Загрузка...' : 'Показать ещё комментарии' }}
+          {{ loadingComments ? 'Загрузка...' : 'Показать комментарии' }}
         </button>
 
+        <div v-if="commentsVisible" class="comments-list">
+          <CommentItem
+            v-for="comment in comments"
+            :key="comment.id"
+            :comment="comment"
+            :auth-store="auth"
+            @deleted="onCommentDeleted"
+          />
+
+          <button
+            v-if="hasMoreComments"
+            class="btn btn-outline btn-load-more"
+            :disabled="loadingMoreComments"
+            @click="loadMoreComments"
+          >
+            {{ loadingMoreComments ? 'Загрузка...' : 'Показать ещё комментарии' }}
+          </button>
+        </div>
+      </section>
+
     </div>
 
-</div>
-
-<p
-    v-else
->
-
-    Загрузка...
-
-</p>
-
+    <div v-else class="loading-state">
+      Загрузка поста...
+    </div>
+  </div>
 </template>
 
 
@@ -521,82 +471,234 @@ const renderBody = computed(() => {
 
 
 
+
+
 <style scoped>
-
-.actions{
-
-    margin:15px 0;
-
-    display:flex;
-
-    gap:10px;
-
+.post-page-container {
+  max-width: 800px;
+  margin: 30px auto;
+  padding: 0 15px;
 }
 
-
-.reactions{
-
-    display:flex;
-
-    gap:16px;
-
-    margin-top:20px;
-
+.post-card {
+  background: #ffffff;
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
-.reaction{
-
-    display:flex;
-
-    align-items:center;
-
-    gap:6px;
-
-    cursor:pointer;
-
-    user-select:none;
-
-    transition:.2s;
-
-    padding:6px 10px;
-
-    border-radius:8px;
-
+.loading-state {
+  text-align: center;
+  color: #666;
+  padding: 40px 0;
 }
 
-.reaction:hover{
-
-    background:#ececec;
-
+.post-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
 }
 
-.reaction.active{
+.post-title {
+  margin: 0;
+  font-size: 26px;
+  color: #2c3e50;
+  line-height: 1.3;
+}
 
-    background:#1976d2;
+.post-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 
-    color:white;
-
-    font-weight:bold;
-
+.post-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 14px;
+  color: #666;
 }
 
 .author {
+  font-weight: 500;
   cursor: pointer;
-  transition: text-decoration 0.2s;
+  color: #2c3e50;
+  transition: color 0.2s;
 }
 
 .author:hover {
-  text-decoration: underline;
+  color: #1976d2;
+}
+
+.bullet {
+  color: #ccc;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .tag-badge {
   cursor: pointer;
   color: #1976d2;
-  margin-right: 6px;
-  user-select: none;
+  background: #f0f7ff;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s;
 }
+
 .tag-badge:hover {
+  background: #e3f2fd;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #f0f0f0;
+  margin: 24px 0;
+}
+
+.post-body {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+}
+
+.post-body :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.post-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.reactions {
+  display: flex;
+  gap: 8px;
+}
+
+.reaction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+  padding: 6px 12px;
+  border-radius: 16px;
+  background: #f0f2f5;
+  font-size: 14px;
+}
+
+.reaction:hover {
+  background: #e4e6eb;
+}
+
+.reaction.active {
+  background: #1976d2;
+  color: white;
+  font-weight: 600;
+}
+
+.stats {
+  display: flex;
+  gap: 16px;
+  color: #777;
+  font-size: 14px;
+}
+
+/* Comments Section */
+.comments-section {
+  margin-top: 32px;
+}
+
+.comments-title {
+  font-size: 20px;
+  color: #2c3e50;
+  margin-bottom: 16px;
+}
+
+.main-editor-wrapper {
+  margin-bottom: 24px;
+}
+
+.auth-notice {
+  background: #f8f9fa;
+  padding: 14px;
+  border-radius: 8px;
+  color: #666;
+  font-size: 14px;
+  text-align: center;
+  border: 1px dashed #ccc;
+}
+
+.auth-notice a {
+  color: #1976d2;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-notice a:hover {
   text-decoration: underline;
 }
 
+.btn-show-comments,
+.btn-load-more {
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px;
+}
+
+.comments-list {
+  margin-top: 16px;
+}
+
+/* Button System */
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.btn-outline {
+  background-color: transparent;
+  border-color: #1976d2;
+  color: #1976d2;
+}
+
+.btn-outline:hover {
+  background-color: #f0f7ff;
+}
+
+.btn-danger-outline {
+  background-color: transparent;
+  border-color: #ffcdd2;
+  color: #d32f2f;
+}
+
+.btn-danger-outline:hover {
+  background-color: #ffebee;
+}
 </style>

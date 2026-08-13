@@ -1,50 +1,52 @@
 <template>
-
-<div class="container">
-
-    <div class="controls">
-
-        <select v-model="sort">
-
-            <option value="new">
-                Последние
-            </option>
-
-            <option value="popular">
-                Популярные
-            </option>
-
+  <div class="container">
+    <div class="header-section">
+      <div class="controls">
+        <select v-model="sort" class="select-input">
+          <option value="new">Последние</option>
+          <option value="popular">Популярные</option>
         </select>
 
         <select
-            v-if="sort === 'popular'"
-            v-model="period"
+          v-if="sort === 'popular'"
+          v-model="period"
+          class="select-input"
         >
-            <option value="day">За день</option>
-            <option value="week">За неделю</option>
-            <option value="month">За месяц</option>
-            <option value="year">За год</option>
-            <option value="all_time">За всё время</option>
+          <option value="day">За день</option>
+          <option value="week">За неделю</option>
+          <option value="month">За месяц</option>
+          <option value="year">За год</option>
+          <option value="all_time">За всё время</option>
         </select>
+      </div>
 
+      <div class="total-count">
+        Найдено постов: <strong>{{ totalCount }}</strong>
+      </div>
     </div>
 
-    <PostCard
+    <div class="posts-list">
+      <PostCard
         v-for="post in posts"
         :key="post.id"
         :post="post"
-    />
+      />
+    </div>
 
-    <button
+    <div class="pagination">
+      <button
         v-if="posts.length < totalCount"
+        class="btn-more"
         @click="loadMore"
-    >
+      >
         Показать ещё
-    </button>
-
-</div>
-
+      </button>
+    </div>
+  </div>
 </template>
+
+
+
 
 <script setup lang="ts">
 
@@ -100,15 +102,72 @@ onMounted(() => loadPosts());
 
 </script>
 
-<style scoped>
 
+
+
+<style scoped>
 .container {
-    width: 900px;
-    margin: auto;
+  max-width: 800px;
+  margin: 30px auto;
+  padding: 0 15px;
+}
+
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .controls {
-    margin: 25px 0;
+  display: flex;
+  gap: 10px;
 }
 
+.select-input {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.select-input:focus {
+  border-color: #1976d2;
+}
+
+.total-count {
+  font-size: 14px;
+  color: #666;
+}
+
+.posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 25px;
+}
+
+.btn-more {
+  padding: 10px 24px;
+  background-color: #fff;
+  border: 1px solid #1976d2;
+  color: #1976d2;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-more:hover {
+  background-color: #1976d2;
+  color: #fff;
+}
 </style>

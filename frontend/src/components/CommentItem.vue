@@ -19,16 +19,26 @@
     />
 
     <template v-else>
-      <p>{{ currentComment.body }}</p>
+      <p class="comment-body">{{ currentComment.body }}</p>
 
       <!-- Вложения -->
       <div v-if="currentComment.attachments?.length" class="attachments">
-        <img
-          v-for="file in currentComment.attachments"
-          :key="file.id"
-          :src="api + file.url"
-          class="image"
-        />
+        <template v-for="file in currentComment.attachments" :key="file.id">
+          <!-- Если это видео -->
+          <video
+            v-if="file.file_type === 'video' || file.url.match(/\.(mp4|webm|ogg|mov)$/i)"
+            :src="api + file.url"
+            controls
+            class="attachment-video"
+          ></video>
+
+          <!-- Если это изображение или gif -->
+          <img
+            v-else
+            :src="api + file.url"
+            class="attachment-image"
+          />
+        </template>
       </div>
 
       <!-- Реакции -->
@@ -40,7 +50,8 @@
           :class="{ active: currentComment.user_reaction === type }"
           @click="react(type)"
         >
-          {{ icon }} {{ currentComment.reactions?.[type] ?? 0 }}
+          <span>{{ icon }}</span>
+          <span>{{ currentComment.reactions?.[type] ?? 0 }}</span>
         </div>
       </div>
 
@@ -60,7 +71,7 @@
           </button>
         </template>
 
-        <button v-if="repliesCount > 0" class="btn-link" @click="toggleReplies">
+        <button v-if="repliesCount > 0" class="btn-link btn-toggle-replies" @click="toggleReplies">
           {{ repliesVisible ? 'Скрыть ответы' : `Показать ответы (${repliesCount})` }}
         </button>
       </div>
@@ -77,7 +88,7 @@
 
     <!-- Дерево ответов -->
     <div v-if="repliesVisible" class="replies-tree">
-      <div v-if="loadingReplies">Загрузка ответов...</div>
+      <div v-if="loadingReplies" class="state-msg">Загрузка ответов...</div>
       <CommentItem
         v-for="reply in replies"
         :key="reply.id"
@@ -86,19 +97,19 @@
         @deleted="onReplyDeleted"
       />
 
-        <!-- Кнопка подгрузки следующих ответов -->
-        <button
-            v-if="hasMoreReplies"
-            class="btn-link load-more-replies"
-            :disabled="loadingMoreReplies"
-            @click="loadMoreReplies"
-        >
-            {{ loadingMoreReplies ? 'Загрузка...' : 'Показать ещё ответы' }}
-        </button>
-
+      <!-- Кнопка подгрузки следующих ответов -->
+      <button
+        v-if="hasMoreReplies"
+        class="btn-link load-more-replies"
+        :disabled="loadingMoreReplies"
+        @click="loadMoreReplies"
+      >
+        {{ loadingMoreReplies ? 'Загрузка...' : 'Показать ещё ответы' }}
+      </button>
     </div>
   </div>
 </template>
+
 
 
 
@@ -260,95 +271,144 @@ function onReplyCreated(newReply: Comment) {
 }
 </script>
 
+
+
 <style scoped>
 .comment {
-  border-bottom: 1px solid #ddd;
-  padding: 15px 0;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px 0;
 }
-.image {
-  max-width: 300px;
-  display: block;
-  margin-top: 10px;
-}
-.comment-actions {
-  margin-top: 8px;
-  display: flex;
-  gap: 12px;
-}
-.btn-link {
-  background: none;
-  border: none;
-  color: #0066cc;
-  cursor: pointer;
-  padding: 0;
-  font-size: 0.9em;
-}
-.btn-link:hover {
-  text-decoration: underline;
-}
-.replies-tree {
-  margin-left: 20px;
-  border-left: 2px solid #eee;
-  padding-left: 10px;
-  margin-top: 10px;
+
+.comment:last-child {
+  border-bottom: none;
 }
 
 .comment-header {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-.created-at {
-  font-size: 0.8em;
-  color: #888;
+  margin-bottom: 6px;
 }
 
 .author {
+  color: #2c3e50;
   cursor: pointer;
+  font-size: 14px;
 }
 
 .author:hover {
+  color: #1976d2;
   text-decoration: underline;
 }
 
+.created-at {
+  font-size: 12px;
+  color: #888;
+}
+
+.comment-body {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.attachment-image {
+  max-width: 260px;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
 
 .reactions {
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 8px;
 }
+
 .reaction {
   display: flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 3px 8px;
+  border-radius: 12px;
   user-select: none;
-  transition: 0.2s;
-  background: #f0f0f0;
+  transition: background 0.2s;
+  background: #f0f2f5;
+  font-size: 13px;
+  color: #555;
 }
+
 .reaction:hover {
-  background: #e0e0e0;
+  background: #e4e6eb;
 }
+
 .reaction.active {
   background: #1976d2;
-  color: white;
-  font-weight: bold;
-}
-.btn-link.danger {
-  color: #cc0000;
+  color: #ffffff;
+  font-weight: 600;
 }
 
-.btn-load-more {
-  display: block;
-  margin: 15px auto 0;
-  padding: 8px 16px;
+.comment-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 14px;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #666;
   cursor: pointer;
-}
-.load-more-replies {
-  margin-top: 8px;
-  font-weight: bold;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s;
 }
 
+.btn-link:hover {
+  color: #1976d2;
+  text-decoration: underline;
+}
+
+.btn-link.danger {
+  color: #d32f2f;
+}
+
+.btn-link.danger:hover {
+  color: #b71c1c;
+}
+
+.btn-toggle-replies {
+  color: #1976d2;
+}
+
+.replies-tree {
+  margin-left: 16px;
+  border-left: 2px solid #e3f2fd;
+  padding-left: 14px;
+  margin-top: 12px;
+}
+
+.state-msg {
+  font-size: 13px;
+  color: #888;
+  padding: 8px 0;
+}
+
+.load-more-replies {
+  margin-top: 10px;
+  color: #1976d2;
+  font-weight: 600;
+}
 </style>

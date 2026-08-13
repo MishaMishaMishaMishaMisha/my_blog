@@ -2,7 +2,12 @@ from fastapi import APIRouter
 from fastapi import Depends
 from source.database.db_connect import get_db
 from source.models.user import UserModel
-from source.schemas.user import UserAddDTO, UserDTO, UserPatchDTO, UserPublicProfileDTO
+from source.schemas.user import (UserAddDTO, 
+                                 UserDTO, 
+                                 UserPatchDTO, 
+                                 UserPatchPassword,
+                                 UserPatchEmail,
+                                 UserPublicProfileDTO)
 from source.schemas.post import PostListDTO
 from source.schemas.comment import CommentWithoutRelationsDTO
 from source.services.user import UserService
@@ -17,6 +22,7 @@ from source.core.exceptions import (UserException,
                                     UsernameAlreadyExsistsException, 
                                     UserNotFoundException, 
                                     EmailAlreadyExsistsException,
+                                    InvalidCredentialsException,
                                     InvalidTokenException,
                                     UserInactiveException,
                                     UserAlreadyVerifiedException,
@@ -196,7 +202,7 @@ async def delete_user(user: UserModel = Depends(get_user_from_token),
         default_logger.error("Deleting user: Error. User not found")
         raise HTTPException(status_code=404, detail=str(e))
     
-# update user
+# update user. any user fields exept password and email
 @router.patch("/me", response_model=UserDTO, 
               dependencies=[Depends(update_user_limiter)])
 async def update_user(user_data: UserPatchDTO,
@@ -205,17 +211,66 @@ async def update_user(user_data: UserPatchDTO,
     try:
         default_logger.info("Updating user: Trying")
         
-        if not user.is_verified:
-            default_logger.info("User is not verified")
-            raise HTTPException(status_code=403, detail="Please, verify your email to do this")
-        
         return await user_service.update_user(user.id, user_data)
     
     except UserNotFoundException as e:
         default_logger.error("Updating user: Error. User not found")
         raise HTTPException(status_code=404, detail=str(e))
     
-    except (UsernameAlreadyExsistsException, EmailAlreadyExsistsException) as e:
-        default_logger.error("Updating user: Error. Such username or email alreay exists")
+    except UsernameAlreadyExsistsException as e:
+        default_logger.error("Updating user: Error. Such username alreay exists")
         raise HTTPException(status_code=400, detail=str(e))
+    
+# update email
+@router.patch("/me/email", 
+              #dependencies=[Depends(update_user_limiter)])
+)
+async def update_user_email(email_data: UserPatchEmail,
+                      user: UserModel = Depends(get_user_from_token),
+                      user_service: UserService = Depends(get_user_service)) -> dict:
+    try:
+        default_logger.info("Updating user email: Trying")
+        
+        await user_service.update_email(user.id, email_data)
+        
+        return {"message": "email changed"}
+    
+    except UserNotFoundException as e:
+        default_logger.error("Updating user email: Error. User not found")
+        raise HTTPException(status_code=404, detail=str(e))
+    
+    except InvalidCredentialsException as e:
+        default_logger.error("Updating user email: Error. Wrong confirm password")
+        raise HTTPException(status_code=401, detail=str(e))
+    
+    except EmailAlreadyExsistsException as e:
+        default_logger.error("Updating user password: Error. Email already taken")
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except UserException as e:
+        default_logger.error("Updating user password: Erro while comminting. {str(e)}")
+        raise HTTPException(status_code=500, detail="server error. try later")
+
+# update password
+@router.patch("/me/password", 
+              #dependencies=[Depends(update_user_limiter)])
+)
+async def update_user_password(password_data: UserPatchPassword,
+                      user: UserModel = Depends(get_user_from_token),
+                      user_service: UserService = Depends(get_user_service)) -> dict:
+    try:
+        default_logger.info("Updating user password: Trying")
+        
+        await user_service.update_password(user.id, password_data)
+        
+        return {"message": "password changed"}
+    
+    except UserNotFoundException as e:
+        default_logger.error("Updating user password: Error. User not found")
+        raise HTTPException(status_code=404, detail=str(e))
+    
+    except InvalidCredentialsException as e:
+        default_logger.error("Updating user password: Error. Wrong current password")
+        raise HTTPException(status_code=401, detail=str(e))
+    
     

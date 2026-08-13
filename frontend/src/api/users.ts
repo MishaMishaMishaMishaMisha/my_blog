@@ -28,6 +28,30 @@ export async function getUserPosts(
 
 }
 
+
+export async function updateUsername(data: { username: string }) {
+    const response = await api.patch("/users/me", data);
+    return response.data;
+}
+
+export async function updatePassword(data: {
+    current_password: string;
+    new_password: string;
+}) {
+    const response = await api.patch("/users/me/password", data);
+    return response.data;
+}
+
+export async function updateEmail(data: {
+    new_email: string;
+    confirm_password: string;
+}) {
+    const response = await api.patch("/users/me/email", data);
+    return response.data;
+}
+
+
+
 export async function updateCurrentUser(data: {
     username?: string;
     email?: string;
@@ -39,6 +63,12 @@ export async function updateCurrentUser(data: {
     return response.data;
 
 }
+
+
+
+
+
+
 
 export async function deleteCurrentUser() {
 
