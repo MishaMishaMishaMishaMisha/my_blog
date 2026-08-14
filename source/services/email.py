@@ -1,5 +1,7 @@
 import smtplib
+
 from email.message import EmailMessage
+
 from source.core.config import settings
 from source.core.logger import default_logger
 from source.core.exceptions import SendEmailHTMLOpeningException

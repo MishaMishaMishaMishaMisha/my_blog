@@ -1,34 +1,32 @@
-from fastapi import APIRouter
-from fastapi import Depends
-from source.database.db_connect import get_db
-from source.dependencies.user import get_user_service
-from source.core.exceptions import (UsernameAlreadyExsistsException, 
-                                    InvalidCredentialsException,
+from fastapi import (APIRouter,
+                     Depends,
+                     HTTPException,
+                     status,
+                     Response, 
+                     Request, 
+                     Query)
+from fastapi.security import OAuth2PasswordRequestForm
+from typing import Annotated
+
+from source.models.user import UserModel
+from source.tasks.email_task import send_message_to_email
+from source.schemas.user import UserEmailDTO, UserResetPasswordDTO
+
+from source.core.logger import default_logger
+from source.core.exceptions import (InvalidCredentialsException,
                                     UserNotFoundException, 
-                                    EmailAlreadyExsistsException,
                                     InvalidTokenException,
                                     UserInactiveException,
                                     UserAlreadyVerifiedException,
                                     UserAlreadyCreatedVerifyLink,
                                     UserAlreadyCreatedResetpasswordLink)
-from fastapi import HTTPException
-from source.dependencies.auth import get_auth_service
-from source.core.logger import default_logger
-from source.schemas.user import UserEmailDTO, UserResetPasswordDTO
+
 from source.services.auth import AuthService
-from fastapi import Response, Request
-from fastapi.security import OAuth2PasswordRequestForm
-from source.models.user import UserModel
-from source.dependencies.auth import get_user_from_token
-from source.services.email import EmailService
-from source.dependencies.verify_user import get_verify_user_service
-from typing import Annotated
-from fastapi import Query
-from source.tasks.email_task import send_message_to_email
 from source.services.verify_user import VerifyUserService
-from source.core.utils import custom_rate_limit_callback
-from fastapi import Body
-from pydantic import EmailStr
+
+from source.dependencies.auth import get_auth_service
+from source.dependencies.auth import get_user_from_token
+from source.dependencies.verify_user import get_verify_user_service
 from source.dependencies.rate_limit import (login_limiter,
                                             logout_limiter,
                                             refresh_token_limiter,
@@ -44,15 +42,17 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 # отдадим access токен в теле ответа, а refresh токен в куках
 @router.post("/login", 
              dependencies=[Depends(login_limiter)])
-async def login_user(#form_data: UserLoginDTO,
-                     response: Response,
-                     form_data: OAuth2PasswordRequestForm = Depends(), # данные должны прийти не json, а data
+async def login_user(response: Response,
+                     # данные должны прийти не json, а data
+                     form_data: OAuth2PasswordRequestForm = Depends(),
                      auth_service: AuthService = Depends(get_auth_service)) -> dict:
     
     try:
         default_logger.info(f"Authenication user: TRYING, login={form_data.username}")
         tokens = await auth_service.authenticate_user(login=form_data.username,
                                                       password=form_data.password)
+        
+        default_logger.info("Authenication user: done}")
         
         # добавляем refresh_token в куку с защитой
         response.set_cookie(
@@ -66,12 +66,16 @@ async def login_user(#form_data: UserLoginDTO,
         return {"access_token": tokens.access_token, "token_type": "bearer"}
         
     except InvalidCredentialsException as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
+
 
 @router.post("/logout", 
              dependencies=[Depends(logout_limiter)])
 async def logout_user(request: Request,
                       response: Response) -> dict:
+    
+    default_logger.info("Logout user")
     
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -88,16 +92,17 @@ async def update_token(request: Request,
                        response: Response,
                        auth_service: AuthService = Depends(get_auth_service)) -> dict:
     
-    default_logger.info(f"Updating tokens: trying")
+    default_logger.info("Updating tokens: trying")
     
     # достаем refresh токен
     refresh_token = request.cookies.get("refresh_token")
     
     if not refresh_token:
-        raise HTTPException(status_code=401, detail="Refresh token missing")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail="Refresh token missing")
         
     try:
-        # Метод генерирует новую пару токенов
+        # генерируем новую пару токенов
         new_tokens = await auth_service.update_refresh_token(refresh_token)
         
         # Перезаписываем новую куку
@@ -109,11 +114,13 @@ async def update_token(request: Request,
             samesite="lax"
         )
         
+        default_logger.info("Updating tokens: done")
+        
         return {"access_token": new_tokens.access_token, "token_type": "bearer"}
     
     except InvalidTokenException as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
 
 
 @router.post("/resend-verification-email", 
@@ -122,7 +129,7 @@ async def resend_verify_email(user: UserModel = Depends(get_user_from_token),
                               verify_user_service: VerifyUserService = Depends(get_verify_user_service)
                               ) -> dict:
     
-    default_logger.info("Resend verification email")
+    default_logger.info(f"Resend verification email to user <{user.username}>: trying")
     
     if user.is_verified:
         return {"message": "your account already verified"}
@@ -133,10 +140,14 @@ async def resend_verify_email(user: UserModel = Depends(get_user_from_token),
                                             msg_subject="Link for verification account", 
                                             msg_body=link)
         
+        default_logger.info("Resend verification email: done")
+        
         return {"message": "verification link sent to email"}
     
     except UserAlreadyCreatedVerifyLink as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail=str(e))
+
 
 @router.get("/verify-email", 
             dependencies=[Depends(verify_email_limiter)])
@@ -145,7 +156,6 @@ async def verify_user(token: Annotated[str, Query(title="verification token")],
                       ) -> dict:
     
     try:
-        
         default_logger.info("Verification user: TRYING")
         await verify_user_service.verify_email(token)
         default_logger.info("Verification user: user verified")
@@ -153,49 +163,53 @@ async def verify_user(token: Annotated[str, Query(title="verification token")],
         return {"message": "user verified successfully"}
     
     except InvalidTokenException as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
         
     except UserNotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=str(e))
     
     except UserInactiveException as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
     
     except (UserAlreadyVerifiedException, UserAlreadyCreatedVerifyLink) as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
     
     
-
-#POST /auth/forgot-password
 @router.post("/forgot-password", 
              dependencies=[Depends(forgot_password_email_limiter)])
-async def forgot_password(#user_email: Annotated[EmailStr, Body(title="user email")],
-                          email_data: UserEmailDTO,
+async def forgot_password(email_data: UserEmailDTO,
                           verify_user_service: VerifyUserService = Depends(get_verify_user_service)
                           ) -> dict:
     
-    default_logger.info("User forgot password")
+    default_logger.info("User forgot password: check email")
     
     user = await verify_user_service.find_user_by_email(email_data.user_email)
     if not user:
-        raise HTTPException(status_code=404, detail="email not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                            detail="email not found")
     
-
     try:
-        default_logger.info("User forgot password: sending resetting password link to email")
+        default_logger.info("User forgot password: sending msg to email")
         link = await verify_user_service.create_resetPassword_link(user.id)
+        
     except UserAlreadyCreatedResetpasswordLink as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail=str(e))
+    
     else:
         # add task to celery
         send_message_to_email.delay(user_email=user.email, 
                                     msg_subject="Link for resetting password", 
                                     msg_body=link)
     
+    default_logger.info("User forgot password: done")
     return {"message": "resetting password link send to email"}
 
 
-#POST /auth/reset-password
 @router.post("/reset-password", 
              dependencies=[Depends(reset_password_limiter)])
 async def reset_password(password_data: UserResetPasswordDTO,
@@ -210,13 +224,16 @@ async def reset_password(password_data: UserResetPasswordDTO,
         return {"message": "User changed password successfully"}
     
     except InvalidTokenException as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
         
     except UserNotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=str(e))
     
     except UserInactiveException as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
     
     
     

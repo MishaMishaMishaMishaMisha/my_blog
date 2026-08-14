@@ -1,30 +1,25 @@
+from uuid import UUID
+from typing import Sequence, Set
+from enum import Enum
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.interfaces import ORMOption
+from datetime import datetime, timedelta, timezone
+
 from source.repositories.user import UserRepository
 from source.models.user import UserModel
-from source.models.post import PostModel
-from source.models.comment import CommentModel
+from source.cache.redis_backend import RedisBackend
+from source.schemas.user import UserDTO
 from source.schemas.user import (UserAddDTO, 
                                  UserPatchDTO, 
                                  UserPatchPassword,
                                  UserPatchEmail,
                                  UserPublicProfileDTO)
-from source.schemas.post import PostPreviewDTO, PostListDTO
-from source.core.exceptions import (UsernameAlreadyExsistsException, 
-                                    EmailAlreadyExsistsException,
-                                    UserNotFoundException,
+from source.core.exceptions import (EmailAlreadyExsistsException,
                                     InvalidCredentialsException,
                                     UserException)
-from sqlalchemy.exc import IntegrityError
 from source.core.logger import default_logger
 from source.core.security import hash_password, verify_password
-from uuid import UUID
-from typing import Sequence, Set
-from enum import Enum
-from sqlalchemy.orm import joinedload, selectinload
-from sqlalchemy.orm.interfaces import ORMOption
-from datetime import datetime, timedelta, timezone
-from source.schemas.user import UserDTO
-from source.cache.redis_backend import RedisBackend
-
 
 class UserLoadRelations(str, Enum):
     POSTS = "posts"
@@ -161,7 +156,6 @@ class UserService:
     
     async def set_last_seen(self, user: UserModel) -> None:
         now = datetime.now(timezone.utc)
-        #now = datetime.now()
         # обновляем не чаще чем через 5 минут
         # чтобы не делать commit на каждой операции пользователя
         if (user.last_seen is None or now - user.last_seen > timedelta(minutes=5)):

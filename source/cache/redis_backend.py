@@ -1,8 +1,10 @@
-from redis.asyncio import Redis
 import json
-from source.core.config import settings
+
+from redis.asyncio import Redis
 from typing import Any
 from fastapi_limiter import FastAPILimiter
+
+from source.core.config import settings
 
 
 class RedisBackend:
@@ -31,8 +33,8 @@ class RedisBackend:
     async def delete(self, key: str) -> None:
         await self.redis.delete(key)
     
-    # hincrby hash increment by
-    # в redis hash это тип данных похожий на dict in python
+    # hincrby - hash increment by
+    # в redis, hash это тип данных похожий на dict в python
     # key это ключ под которым хранится весь hash
     # field_name это поле внутри hash. 
     # значение этого поля будет увеличиваться на increment_value при каждом вызове
@@ -69,20 +71,6 @@ class RedisBackend:
         
 # единственный экземпляр на приложение
 redis_backend = RedisBackend()
-
-
-# пример кеширования одного объекта. 
-# нужно указать mode="json" чтобы UUID конвертировался в строку
-# dto_post = PostDTO.model_validate(db_post)
-# await redis.set(key=f"post:{db_post.id}", value=dto_post.model_dump(mode="json"), ttl_seconds=600)
-# dto_post = PostDTO.model_validate(await redis.get(f"post:{post_id}"))
-
-# пример кеширования списка объектов
-# posts = [PostDTO.model_validate(post).model_dump(mode="json") for post in db_posts]
-# await redis.set(key="latest_posts", value=posts)
-# posts_dicts = await redis.get("latest_posts")
-# posts = [PostDTO.model_validate(post_dict) for post in posts_dicts]
-
 
 
 

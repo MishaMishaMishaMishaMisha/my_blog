@@ -56,5 +56,5 @@ class SimpleLoggerFactory:
     
     
 
-# level DEBUG, only stream handler
+# по умолчанию уровень DEBUG, вывод в консоль
 default_logger = SimpleLoggerFactory(name="default-logger").get_logger()

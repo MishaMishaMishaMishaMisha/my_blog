@@ -1,13 +1,14 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+import uuid
+
+from datetime import datetime
 from sqlalchemy import text, DateTime
+from sqlalchemy import UUID as SQLAlchemy_UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from source.models.base import BaseORMModel
 from source.core.types import str_50
-from datetime import datetime
-import uuid
-from sqlalchemy import UUID as SQLAlchemy_UUID
-from typing import TYPE_CHECKING
 
-# чтобы IDE не подчеркивала названия моделей в relationship
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from source.models.post import PostModel
 

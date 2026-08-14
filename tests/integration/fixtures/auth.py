@@ -1,8 +1,6 @@
 import pytest_asyncio
-from source.core.security import (
-    create_access_token,
-    create_refresh_token,
-)
+
+from source.core.security import create_access_token, create_refresh_token
 from source.core.types import RoleEnum
 
 
@@ -56,7 +54,6 @@ async def authenticated_admin(users_factory):
             user.id,
         ),
     }
-
 
 
 # создает count пользователей в таблице и создает для каждого токены

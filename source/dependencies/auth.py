@@ -1,17 +1,18 @@
-from fastapi import Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from source.database.db_connect import get_db
-from source.services.auth import AuthService
-from source.repositories.user import UserRepository
-from source.core.logger import default_logger
+from uuid import UUID
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from source.core.types import RoleEnum, TokenTypeEnum
-from source.core.security import decode_token
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from source.database.db_connect import get_db
+from source.repositories.user import UserRepository
 from source.models.user import UserModel
 from source.services.user import UserService
+from source.services.auth import AuthService
 from source.dependencies.user import get_user_service
 from source.core.exceptions import UserNotFoundException
-from uuid import UUID
+from source.core.types import RoleEnum, TokenTypeEnum
+from source.core.security import decode_token
+from source.core.logger import default_logger
 
 
 
@@ -22,13 +23,15 @@ def get_auth_service(db_session: AsyncSession = Depends(get_db)) -> AuthService:
     return AuthService(user_repo)
 
 
-# эта штука автоматически будет доставать токен из заголовка authtorization: bearer
+# этот объект автоматически будет доставать токен из заголовка authtorization: bearer
 # параметр tokenUrl нужен только для удобной авторизации в swagger в документации
 # auto_error=False чтобы этот метод сам не вызывал HttpException если токена нету в заголовке
 oauth2_schem = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
-async def get_user_or_none_from_token(token: str = Depends(oauth2_schem),
-                        user_service: UserService = Depends(get_user_service)) -> UserModel | None:
+
+async def get_user_or_none_from_token(
+            token: str = Depends(oauth2_schem),
+            user_service: UserService = Depends(get_user_service)) -> UserModel | None:
     
     if not token:
         return None
@@ -54,6 +57,7 @@ async def get_user_or_none_from_token(token: str = Depends(oauth2_schem),
         await user_service.set_last_seen(user)
         
         return user
+    
     except UserNotFoundException:
             default_logger.error("Getting user from token: Error. Cant find user in db")
             return None
@@ -62,28 +66,29 @@ async def get_user_from_token(
             user: UserModel | None = Depends(get_user_or_none_from_token)) -> UserModel:
     
     if user is None:
-        raise HTTPException(status_code=401,
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Could not validate token",
                             headers={"WWW-Authenticate": "Bearer"})
     
     return user
 
 
-# так как нам надо передать параметр
-# то обычная функция не подойдет
-# используем класс где 
-# в init передаем параметр
-# и переопределяем call чтобы 
-# экземпляр класса можно было вызвать в Depends
+# зависимость которая проверяет роль пользователя.
+# так как нам надо передать параметр, то обычная функция не подойдет.
+# используем класс где в init передаем параметр
+# и переопределяем call чтобы экземпляр класса можно было вызвать в Depends
 class CheckUserRole:
     
     def __init__(self, allowed_roles: list[RoleEnum]):
         self.allowed_roles = allowed_roles
         
     async def __call__(self, user: UserModel = Depends(get_user_from_token)) -> UserModel:
+        
         default_logger.debug("Checking user permissions")
         if user.role not in self.allowed_roles:
             default_logger.error("Error. User dont have permission")
-            raise HTTPException(status_code=403, detail="You dont have enough permissions")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, 
+                                detail="You dont have enough permissions")
+
         default_logger.debug("Checking user permissions finished. Success")
         return user

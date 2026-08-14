@@ -26,7 +26,6 @@ OFFSET_QUERY = Annotated[int, Query(title="Offset", ge=0)]
 
 
 
-# переменные для работы с файлами
 # url для хранилища файлов
 BASE_DIR = PathDir(__file__).resolve().parent.parent.parent
 STORAGE_PATH = BASE_DIR / "uploads"
@@ -48,7 +47,7 @@ ALLOWED_FILE_TYPES = {
 }
 
 
-# enums
+# enums типы
 class RoleEnum(str, Enum):
     ADMIN = "admin"
     USER = "user"

@@ -1,9 +1,11 @@
 import pytest
 import pytest_asyncio
+
 from source.models.comment import CommentModel
 from source.core.utils import get_random_string
 
 
+# случайные данные для комментария
 @pytest.fixture
 def comment_json():
 
@@ -14,6 +16,7 @@ def comment_json():
     }
 
 
+# создает модель комментария
 @pytest.fixture
 def comment_factory():
 
@@ -40,6 +43,7 @@ def comment_factory():
     return factory
 
 
+# создает модели комментариев и добавляет их в таблицу
 @pytest_asyncio.fixture
 async def comments_factory(
     db_session,
@@ -82,6 +86,7 @@ async def comments_factory(
     return factory
 
 
+# создают ветку моделей комментариев
 @pytest_asyncio.fixture
 async def comments_tree(
     comments_factory,

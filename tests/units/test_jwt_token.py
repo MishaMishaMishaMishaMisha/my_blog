@@ -1,11 +1,14 @@
 import pytest
-from source.core.security import create_jwt_token, decode_token
-from source.core.security import create_access_token, create_refresh_token, RoleEnum, TokenTypeEnum
-from datetime import timedelta
 import jwt
+
+from datetime import timedelta
 from uuid import uuid4
 
-
+from source.core.security import (create_jwt_token, 
+                                  decode_token,
+                                  create_access_token, 
+                                  create_refresh_token)
+from source.core.types import RoleEnum, TokenTypeEnum
 
 
 class TestToken:

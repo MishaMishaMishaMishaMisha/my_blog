@@ -1,13 +1,15 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import text, ForeignKey, String, DateTime
-from source.models.base import BaseORMModel
-from source.core.types import str_120, TypeReactionEnum
-from datetime import datetime
 import uuid
+
+from datetime import datetime
+from sqlalchemy import text, ForeignKey, String, DateTime
 from sqlalchemy import UUID as SQLAlchemy_UUID
-from typing import TYPE_CHECKING
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from source.models.base import BaseORMModel
+from source.core.types import TypeReactionEnum
 
 # чтобы IDE не подчеркивала названия моделей в relationship
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from source.models.user import UserModel
     from source.models.comment_reaction import CommentReactionModel
@@ -22,13 +24,10 @@ class CommentModel(BaseORMModel):
                                           primary_key=True,
                                           server_default=text("gen_random_uuid()"))
     
-    # id автора комментария
     author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     
-    # id поста под которым оставлен комментарий
     post_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"), index=True)
     
-    # содержимое комментария
     body: Mapped[str] = mapped_column(String(2000))
     
     created_at: Mapped[datetime] = mapped_column(
@@ -42,7 +41,7 @@ class CommentModel(BaseORMModel):
     
 
     # id комментария на который отвечает этот комментарий
-    # если None, значит этот комментарий написан просто на пост
+    # если None, значит это корневой комментарий
     # здесь реализована связь на саму себя
     # внешний ключ ссылается на id из этой же таблицы
     parent_id: Mapped[uuid.UUID | None] = mapped_column(

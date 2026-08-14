@@ -1,10 +1,11 @@
-from source.models.user import UserModel
+import pytest
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from httpx import AsyncClient
-from sqlalchemy import select, text, delete
-from uuid import UUID
-import pytest
-from source.core.security import hash_password, verify_password
+from sqlalchemy import select
+
+from source.core.security import hash_password
+from source.models.user import UserModel
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -64,7 +65,7 @@ class TestUser:
         assert user_json.get("created_at", None) != None
         assert user_json.get("last_seen", None) != None  
         
-        # get user with wrong username
+        # несущестующее имя
         response = await async_client.get(f"/users/notexistinguser1234")
         assert response.status_code == 404
 
@@ -80,7 +81,6 @@ class TestUser:
     async def test_get_users(self,
                              limit, offset, response_status_code, result_len,
                              prepared_100_users,
-                             db_session: AsyncSession,
                              async_client: AsyncClient):
         
         if not limit and not offset:
@@ -139,7 +139,6 @@ class TestUser:
         
         assert response.status_code == 400
         
-
     async def test_update_email(self,
                                users_factory,
                                authenticated_users,
@@ -236,32 +235,34 @@ class TestUser:
         assert response.status_code == expected_status
         if result_len:
             assert len(response.json()) == result_len
-            
+    
+    # страница требующая
     async def test_get_protected_page(self, 
                                       async_client: AsyncClient, 
                                       user_json):
         
-        # register
+        # регистрируем пользователя
         response = await async_client.post("/users/register", json=user_json)
         assert response.status_code == 200
         
-        # try to get page without authenticate
+        # получение страницы без аутентификации
         response = await async_client.get("/users/me")
         assert response.status_code == 401
         
-        # try to get page with incorrect token
+        # передача неверного токена
         response = await async_client.get("/users/me", headers={"Authorization": "Bearer 12345"})
         assert response.status_code == 401
         
-        # login and save token
+        # логинимся и сохраняем токен
         response = await async_client.post("/auth/login", data={"username": user_json["email"],
                                                                 "password": user_json["password"]})
         access_token = response.json().get("access_token", None)
         
+        # получение защищенной страницы
         response = await async_client.get("/users/me", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 200
         
-    # client must have role admin to get page
+    # страница которая доступна только админу
     async def test_get_security_page(self, 
                                       async_client: AsyncClient,
                                       authenticated_admin,

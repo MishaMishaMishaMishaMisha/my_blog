@@ -1,8 +1,10 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
 from source.core.config import settings
 from source.core.logger import default_logger
 
-default_logger.debug(f"CREATING DATA BASE <{settings.db.NAME}>")
+
+default_logger.info(f"CREATING CONNECTION TO DATA BASE <{settings.db.NAME}>")
 
 async_engine = create_async_engine(url=settings.db.url_asyncpg)
 
@@ -13,5 +15,4 @@ async_session_factory = async_sessionmaker(bind=async_engine, expire_on_commit=F
 
 async def get_db():
     async with async_session_factory() as session:
-        default_logger.debug("Getting async session")
         yield session

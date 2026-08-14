@@ -1,13 +1,15 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+import uuid
+
+from datetime import datetime
 from sqlalchemy import text, ForeignKey, Text, DateTime
+from sqlalchemy import UUID as SQLAlchemy_UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from source.models.base import BaseORMModel
 from source.core.types import str_120, TypeReactionEnum
-from datetime import datetime
-import uuid
-from sqlalchemy import UUID as SQLAlchemy_UUID
-from typing import TYPE_CHECKING
 
 # чтобы IDE не подчеркивала названия моделей в relationship
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from source.models.user import UserModel
     from source.models.tag import TagModel
@@ -30,7 +32,7 @@ class PostModel(BaseORMModel):
     # содержимое поста
     body: Mapped[str] = mapped_column(Text)
     
-    # счетчик открывшых пост
+    # количество просмотров
     views_count: Mapped[int] = mapped_column(server_default=text("0"))
     
     created_at: Mapped[datetime] = mapped_column(
@@ -41,7 +43,6 @@ class PostModel(BaseORMModel):
         DateTime(timezone=True),
         server_default=text("now()"),
         server_onupdate=text("now()"))
-    
     
     
     """Связи"""

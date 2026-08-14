@@ -3,7 +3,6 @@ from pathlib import Path
 
 # Путь к корневой папке проекта, где лежит файл .env
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-
 ENV_FILE_PATH = BASE_DIR / ".env"
 
 
@@ -71,7 +70,7 @@ class RedisSettings(BaseSettings):
 class Settings(BaseSettings):
     """Главный класс, который собирает всё вместе"""
     
-    MODE: str # dev or test
+    MODE: str # dev или test
     
     db: DbSettings = DbSettings(_env_file=ENV_FILE_PATH)
     jwt: JwtSettings = JwtSettings(_env_file=ENV_FILE_PATH)

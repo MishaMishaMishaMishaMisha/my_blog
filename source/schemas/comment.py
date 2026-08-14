@@ -1,8 +1,9 @@
 from pydantic import BaseModel, Field
+from datetime import datetime
 from uuid import UUID
+
 from source.core.types import TypeReactionEnum
 from source.schemas.attachment import AttachmentDTO
-from datetime import datetime
 
 
 class CommentAddDTO(BaseModel):

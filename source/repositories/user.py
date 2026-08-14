@@ -1,12 +1,14 @@
+from typing import Sequence, cast
+from uuid import UUID
+from sqlalchemy import select, delete, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.interfaces import ORMOption
+
 from source.models.user import UserModel
 from source.models.post import PostModel
 from source.models.comment import CommentModel
 from source.schemas.user import UserAddDTO, UserPatchDTO
-from sqlalchemy import select, delete, func
-from sqlalchemy.orm import contains_eager
-from sqlalchemy.orm.interfaces import ORMOption
-from sqlalchemy.exc import IntegrityError
 from source.core.exceptions import (UserException,
                                     UsernameAlreadyExsistsException, 
                                     EmailAlreadyExsistsException, 
@@ -14,8 +16,6 @@ from source.core.exceptions import (UserException,
                                     UserInactiveException,
                                     UserAlreadyVerifiedException)
 from source.core.logger import default_logger
-from typing import Sequence, cast
-from uuid import UUID
 
 
 class UserRepository:
@@ -90,6 +90,8 @@ class UserRepository:
             
         return cast(tuple[UserModel, int, int], row)
     
+    # найти пользователя по id/username/email
+    # если не найден, верент None
     async def get_user_by(self, 
                           id: UUID | None = None,
                           username: str | None = None,
@@ -116,6 +118,7 @@ class UserRepository:
         res = await self.db_session.execute(query)
         return res.scalar_one_or_none()
     
+    # сделать is_verified=True если пользователь найден и не еще не подтвержден
     async def verify_user(self, user_id: UUID) -> UserModel:
         user = await self.get_user_by(id=user_id)
         if not user:
@@ -150,6 +153,7 @@ class UserRepository:
         
         return deleted_username
     
+    # получить пользователя по id. если не найден - будет вызвано исключение
     async def get_user(self, user_id: UUID,
                        load_options: Sequence[ORMOption] | None = None) -> UserModel:
 
@@ -175,6 +179,7 @@ class UserRepository:
         res = await self.db_session.execute(query)
         return res.scalars().all()
     
+    # изменение данных пользователя (кроме пароля и почты)
     async def update_user(self, user_id: UUID, user_data: UserPatchDTO) -> UserModel:
      
         # словарь только с указанными полями в запросе
@@ -211,7 +216,6 @@ class UserRepository:
         await self.db_session.refresh(user_model)
         return user_model
         
-    
     # принимает часть имени либо полное имя
     # ищет все совпадения и возвращает их
     async def find_user_by_name(self, seacrhing_name: str,

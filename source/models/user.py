@@ -1,13 +1,15 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+import uuid
+
+from datetime import datetime
 from sqlalchemy import text, String, Enum, DateTime
+from sqlalchemy import UUID as SQLAlchemy_UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from source.models.base import BaseORMModel
 from source.core.types import str_20, RoleEnum
-from datetime import datetime
-import uuid
-from sqlalchemy import UUID as SQLAlchemy_UUID
-from typing import TYPE_CHECKING
 
 # чтобы IDE не подчеркивала названия моделей в relationship
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from source.models.post import PostModel
     from source.models.post_reaction import PostReactionModel
@@ -17,13 +19,6 @@ if TYPE_CHECKING:
 
 class UserModel(BaseORMModel):
     __tablename__ = "users"
-    
-    #id: Mapped[int] = mapped_column(primary_key=True)
-    
-    # используем вместо int, формат UUID
-    # UUID это Universally Unique Identifier
-    # это строка из 36 символов
-    # пример 123e4567-e89b-12d3-a456-426614174000
     
     # as_uuid=True будет автоматически конвертировать UUID строку из бд в
     #   питоновский UUID формат
@@ -45,7 +40,6 @@ class UserModel(BaseORMModel):
         server_default=RoleEnum.USER.value
     )
     
-    # это не online/offline а активный ли аккаунт или он забанен например
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     
     # подтвержена ли почта

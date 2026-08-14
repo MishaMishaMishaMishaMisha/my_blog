@@ -1,9 +1,11 @@
 import pytest
 import pytest_asyncio
+
+from sqlalchemy import delete
+
 from source.models.tag import TagModel
 from source.core.utils import get_random_string
 from source.database.db_connect import async_session_factory
-from sqlalchemy import delete
 
 
 # создает три случайных имени для тегов

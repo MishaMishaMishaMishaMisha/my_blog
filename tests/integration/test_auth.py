@@ -1,10 +1,8 @@
-from httpx import AsyncClient
 import pytest
 import asyncio
 
-from sqlalchemy import select
+from httpx import AsyncClient
 
-from source.models.user import UserModel
 from source.repositories.user import UserRepository
 from source.cache.redis_backend import redis_backend
 from source.services.verify_user import VerifyUserService
@@ -17,11 +15,11 @@ class TestAuth:
                               async_client: AsyncClient, 
                               user_json):
         
-        # register
+        # регистрация
         response = await async_client.post("/users/register", json=user_json)
         assert response.status_code == 200
         
-        # login using username
+        # вход через имя
         response = await async_client.post("/auth/login", data={"username": user_json["username"],
                                                                 "password": user_json["password"]})
         
@@ -30,7 +28,7 @@ class TestAuth:
         assert data.get("access_token", None) is not None
         assert response.cookies.get("refresh_token", None) is not None
         
-        # login using email
+        # вход через почту
         response = await async_client.post("/auth/login", data={"username": user_json["email"],
                                                                 "password": user_json["password"]})
         
@@ -39,7 +37,7 @@ class TestAuth:
         assert data.get("access_token", None) is not None
         assert response.cookies.get("refresh_token", None) is not None
         
-        # wrong login
+        # неправильный логин
         response = await async_client.post("/auth/login", data={"username": "aaaaaaaaaaaaaa",
                                                                 "password": user_json["password"]})
         assert response.status_code == 401
@@ -47,7 +45,7 @@ class TestAuth:
         assert data.get("access_token", None) is None
         assert response.cookies.get("refresh_token", None) is None
         
-        # wrong password
+        # неправильный пароль
         response = await async_client.post("/auth/login", data={"username": user_json["username"],
                                                                 "password": "qqqqqqqqqqqqq"})
         assert response.status_code == 401
@@ -68,7 +66,7 @@ class TestAuth:
         assert response.status_code == 200
         assert response.cookies.get("refresh_token", None) is None
         
-        # logout without refresh token
+        # выход без refresh token
         response = await async_client.post("/auth/logout")
         assert response.status_code == 200
         assert response.cookies.get("refresh_token", None) is None
@@ -77,11 +75,11 @@ class TestAuth:
                                         async_client: AsyncClient, 
                                         user_json):
         
-        # register
+        # регистрация
         response = await async_client.post("/users/register", json=user_json)
         assert response.status_code == 200
         
-        # login and save tokens
+        # вход и сохранение токенов
         response = await async_client.post("/auth/login", data={"username": user_json["email"],
                                                                 "password": user_json["password"]})
         
@@ -93,7 +91,7 @@ class TestAuth:
         # Ждем 1 секунду, чтобы сменился timestamp для JWT
         await asyncio.sleep(1)
         
-        # refresh tokens
+        # обновление токенов
         response = await async_client.post("/auth/refresh", cookies={"refresh_token": refresh_token})
         assert response.status_code == 200
         data = response.json()
@@ -139,7 +137,7 @@ class TestAuth:
         response = await async_client.get("/auth/verify-email?token=" + token)
         assert response.status_code == 200
         
-        # check user verify
+        # проверяем что пользователь теперь подтверждет
         response = await async_client.post(
                 "/auth/resend-verification-email",
                 headers={"Authorization": f"Bearer {access_token}"})
@@ -148,7 +146,7 @@ class TestAuth:
         assert mock_email_service.call_count == 0
         assert response.json()["message"] == "your account already verified"
         
-        # try to verify again
+        # переход по той же ссылке второй раз
         response = await async_client.get("/auth/verify-email?token=" + token)
         assert response.status_code == 401
 
@@ -173,8 +171,7 @@ class TestAuth:
     async def test_reset_password(self,
                                        async_client: AsyncClient,
                                        db_session,
-                                       authenticated_user,
-                                       mock_email_service): 
+                                       authenticated_user): 
         
         user_id = authenticated_user["user"].id
         username = authenticated_user["user"].username
@@ -191,12 +188,12 @@ class TestAuth:
                                           json={"token": token, "new_password": new_password})
         assert response.status_code == 200
         
-        # try to reset again
+        # пробуем еще раз отправить пароль с этим токеном
         response = await async_client.post("/auth/reset-password", 
                                           json={"token": token, "new_password": "fblnkgbegkgbgn"})
         assert response.status_code == 401
         
-        # check new password
+        # проверка нового пароля
         response = await async_client.post("/auth/login", data={"username": username,
                                                                 "password": new_password})
         assert response.status_code == 200

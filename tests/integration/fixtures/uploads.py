@@ -1,12 +1,12 @@
 import mimetypes
-from pathlib import Path
-from shutil import copy2
 import pytest
 import pytest_asyncio
+
+from pathlib import Path
+from fastapi import UploadFile
+
 from source.models.attachment_media import AttachmentMediaModel
 from source.core.types import FileTypeEnum
-from source.core.utils import get_random_string
-from fastapi import UploadFile
 
 
 @pytest.fixture

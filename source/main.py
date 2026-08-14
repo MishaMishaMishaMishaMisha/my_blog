@@ -1,17 +1,19 @@
+import uvicorn
+import argparse
+import logging
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
 from source.routers.users import router as user_router
 from source.routers.auth import router as auth_router
 from source.routers.posts import router as post_router
 from source.routers.uploads import router as upload_router
 from source.routers.comments import router as comment_router
-from fastapi.staticfiles import StaticFiles
-import uvicorn
-import argparse
-from source.core.logger import default_logger
-import logging
-from fastapi.middleware.cors import CORSMiddleware
 from source.cache.redis_backend import redis_backend
-from contextlib import asynccontextmanager
+from source.core.logger import default_logger
 
 
 
@@ -44,7 +46,7 @@ def create_app(with_lifespan: bool = True) -> FastAPI:
         name="uploads"
     )
 
-    # CORS - позволить фронтенду подключаться к серверу
+    # CORS - позволить фронтенду делать запросы к бекенду
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -93,7 +95,7 @@ if __name__ == "__main__":
 
     default_logger.setLevel(logging._nameToLevel[args.app_log_level])
 
-    # если указан --uvicorn_reload, в reload_dirs помещает путь к файлам проекта
+    # если указан --uvicorn_reload, в reload_dirs указываем путь к файлам проекта
     # за измененями которых будет следить uvicorn
     # для корректной слежки, установлена библиотека watchfiles 
     uvicorn.run(
@@ -101,5 +103,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=args.uvicorn_reload,
-        reload_dirs=["/app/source"] if args.uvicorn_reload else None # явно указываем папку
+        reload_dirs=["/app/source"] if args.uvicorn_reload else None
     )

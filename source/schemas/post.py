@@ -1,9 +1,10 @@
 from pydantic import BaseModel, Field
 from uuid import UUID
+from datetime import datetime
+
 from source.core.types import TypeReactionEnum
 from source.schemas.attachment import AttachmentDTO
 from source.schemas.tag import TagDTO, TagCreateDTO
-from datetime import datetime
 
 
 class PostAddDTO(BaseModel):
@@ -21,9 +22,9 @@ class PostPatchDTO(BaseModel):
 class PostAddReactionDTO(BaseModel):
     post_id: UUID
     reaction_type: TypeReactionEnum
-    
-# response
-    
+
+
+# response    
 class PostWithoutRelationsDTO(BaseModel):
     id: UUID
     title: str
@@ -33,10 +34,13 @@ class PostWithoutRelationsDTO(BaseModel):
     views_count: int
 
     model_config = {'from_attributes': True}
+    
 class PostWithTagsDTO(PostWithoutRelationsDTO):
     tags: list[TagDTO]
+    
 class PostWithReactionsDTO(PostWithoutRelationsDTO):
     reactions: dict[TypeReactionEnum, int]
+    
 class PostFullDTO(PostWithoutRelationsDTO):
     author_username: str = ""
     tags: list[TagDTO]

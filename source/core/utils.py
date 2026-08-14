@@ -1,14 +1,13 @@
 import random
 import string
 
-from fastapi import Depends, HTTPException, Request, Response, status
-from fastapi_limiter.depends import RateLimiter
+from fastapi import HTTPException, Request, Response, status
 
 
 # обработчик ограничителя запросов
 async def custom_rate_limit_callback(request: Request, response: Response, pexpire: int) -> None:
-    """pexpire — это оставшееся время блокировки в миллисекундах"""
-    # Переводим миллисекунды в секунды для заголовка Retry-After
+    # pexpire — это оставшееся время блокировки в миллисекундах
+    
     expire_seconds = max(1, pexpire // 1000) if pexpire else 60
 
     raise HTTPException(
@@ -22,6 +21,8 @@ async def custom_rate_limit_callback(request: Request, response: Response, pexpi
     )
 
 
+# случайная строка 
+# для тестирования
 def get_random_string(length: int = 10) -> str:
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))

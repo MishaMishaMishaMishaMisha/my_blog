@@ -1,7 +1,10 @@
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import text, ForeignKey
-from source.models.base import BaseORMModel
 import uuid
+
+from sqlalchemy import text, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column
+
+from source.models.base import BaseORMModel
+
 
 class PostTagModel(BaseORMModel):
     __tablename__ = "post_tags"

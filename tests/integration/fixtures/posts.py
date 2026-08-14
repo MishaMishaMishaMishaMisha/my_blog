@@ -1,10 +1,12 @@
 import pytest
 import pytest_asyncio
+
 from source.models.post import PostModel
 from source.core.utils import get_random_string
 from source.database.db_connect import async_session_factory
 
 
+# случайные данные для поста
 @pytest.fixture
 def post_json():
 
@@ -16,6 +18,7 @@ def post_json():
     }
 
 
+# создает модель поста
 @pytest.fixture
 def post_factory():
 
@@ -40,6 +43,7 @@ def post_factory():
     return factory
 
 
+# создет несколько постов и добавляет их в таблицу
 @pytest_asyncio.fixture
 async def posts_factory(
     db_session,
@@ -115,16 +119,15 @@ async def prepared_100_posts(prepared_1_user):
 async def prepared_10_posts(prepared_1_user):
 
     post_titles = [
-        "top five rpg games in 2025",   # 0
-        "my favorite films",            # 1
-        "how to learn programming",     # 2
-        "game of the 2010",             # 3
-        # ---- Новые посты для расширенных тестов ----
-        "Разработка на Python и Go",    # 4 (Кириллица)
-        "The Witcher 3: Wild Hunt",     # 5 (Спецсимволы, точный бренд)
-        "FastAPI vs Django guide",      # 6 (Похожий на "programming")
-        "Python для начинающих",        # 7 (Дублирование темы Python)
-        "Super Game Max Pro",           # 8 (Для проверки ранжирования слова Game)
+        "top five rpg games in 2025",
+        "my favorite films",            
+        "how to learn programming",     
+        "game of the 2010",             
+        "Разработка на Python и Go",    
+        "The Witcher 3: Wild Hunt",    
+        "FastAPI vs Django guide",     
+        "Python для начинающих",       
+        "Super Game Max Pro",          
     ]
     
     posts = []

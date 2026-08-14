@@ -1,7 +1,10 @@
-from celery import Celery
-from source.core.config import settings
 import os
+
+from celery import Celery
+
+from source.core.config import settings
 from source.core.logger import default_logger
+
 
 app = Celery("source.celery_app.celery_app",
              broker=settings.redis.url,
@@ -14,10 +17,10 @@ app = Celery("source.celery_app.celery_app",
 """
 Аргументы:
 - название модуля (полный путь) где лежит этот объект app
-- адрес для подключения к брокеру. тут это "redis://redis:6379/0"
-- место где будет сохранен результат выполнения задачи. тут указан тоже Redis
-- список модулей с нашими задачами (в этом пример одна задача project/source/tasks/email_task.py)
-- последний параметр нужен просто чтобы не было предупреждений в консоли??
+- broker адрес для подключения к брокеру. тут это "redis://redis:6379/0"
+- backend место где будет сохранен результат выполнения задачи. тут указан тоже Redis
+- inclue список модулей с задачами
+- последний параметр нужен просто чтобы не было предупреждений в консоли
 """
 
 # Если режим TEST или CELERY_TASK_ALWAYS_EAGER=True, задачи выполняются синхронно

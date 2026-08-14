@@ -1,41 +1,39 @@
-from fastapi import APIRouter
-from fastapi import Depends
-from source.database.db_connect import get_db
+from fastapi import (APIRouter,
+                     Depends,
+                     Query, 
+                     Path,
+                     HTTPException,
+                     status)
+from typing import Sequence, Annotated
+
 from source.models.user import UserModel
+from source.tasks.email_task import send_message_to_email
+
+from source.services.user import UserService
+from source.services.post import PostService
+from source.services.verify_user import VerifyUserService
+
+from source.schemas.post import PostListDTO
 from source.schemas.user import (UserAddDTO, 
                                  UserDTO, 
                                  UserPatchDTO, 
                                  UserPatchPassword,
                                  UserPatchEmail,
                                  UserPublicProfileDTO)
-from source.schemas.post import PostListDTO
-from source.schemas.comment import CommentWithoutRelationsDTO
-from source.services.user import UserService
-from source.services.post import PostService
-from source.services.comment import CommentService
-from source.services.email import EmailService
-from source.dependencies.user import get_user_service
-from source.dependencies.post import get_post_service
-from source.dependencies.comment import get_comment_service
-from source.dependencies.verify_user import get_verify_user_service
+
+from source.core.logger import default_logger
+from source.core.types import RoleEnum, OFFSET_QUERY, LIMIT_QUERY
 from source.core.exceptions import (UserException,
                                     UsernameAlreadyExsistsException, 
                                     UserNotFoundException, 
                                     EmailAlreadyExsistsException,
                                     InvalidCredentialsException,
-                                    InvalidTokenException,
-                                    UserInactiveException,
-                                    UserAlreadyVerifiedException,
                                     UserAlreadyCreatedVerifyLink)
-from fastapi import HTTPException
-from source.core.logger import default_logger
+
+from source.dependencies.user import get_user_service
+from source.dependencies.post import get_post_service
+from source.dependencies.verify_user import get_verify_user_service
 from source.dependencies.auth import get_user_from_token, CheckUserRole
-from source.core.types import RoleEnum, USER_ID_TYPE, OFFSET_QUERY, LIMIT_QUERY
-from typing import Sequence
-from typing import Annotated
-from fastapi import Query, Path
-from source.tasks.email_task import send_message_to_email
-from source.services.verify_user import VerifyUserService
 from source.dependencies.rate_limit import (register_rate_limiter,
                                             get_me_limiter,
                                             get_users_limiter,
@@ -43,11 +41,12 @@ from source.dependencies.rate_limit import (register_rate_limiter,
                                             get_user_profile_limiter,
                                             get_user_posts_limiter,
                                             delete_user_limiter,
-                                            update_user_limiter)
+                                            update_user_limiter,
+                                            update_email_limiter,
+                                            update_password_limiter)
 
 
 router = APIRouter(prefix="/users", tags=["Users"])
-
 
 
 @router.post("/register", 
@@ -63,7 +62,7 @@ async def register_user(new_user: UserAddDTO,
         user = await user_service.create_new_user(new_user)
         default_logger.info("Adding new user: USER ADDED")
         
-        # send verification link to email (celery)
+        # отправка письма с подтверждением через celery
         default_logger.info("Adding new user: sending verification link to email")
         link = await verify_user_service.create_verify_link(user.id)
         
@@ -75,39 +74,43 @@ async def register_user(new_user: UserAddDTO,
     
     except (UsernameAlreadyExsistsException, 
             EmailAlreadyExsistsException) as e:
+        
         default_logger.error("Adding new user: Error. Username or email already exists")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail=str(e))
     
     except UserAlreadyCreatedVerifyLink as e:
         default_logger.error("Adding new user: Error. User already created verify link")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail=str(e))
     
     except UserException as e:
         default_logger.error(f"Adding new user: Error. unknown inegrity error")
-        raise HTTPException(status_code=500, detail="Server cant add new user. Try later")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                            detail="Server cant add new user. Try later")
     
 
-
-# protected page. only authothicated user allowed
-# client must add header: Authorization: Bearer access_token
+# защищенная страница
+# пользователь должен добавить заголовок: Authorization: Bearer access_token
 @router.get("/me", response_model=UserDTO,
             dependencies=[Depends(get_me_limiter)])
 async def get_me(user: UserModel = Depends(get_user_from_token)) -> UserDTO:
-    default_logger.debug("Getting protected page")
+    
+    default_logger.info(f"Getting <me> page. User: {user.username}")
     return UserDTO.model_validate(user)
 
-# test security page
-# client must add header: Authorization: Bearer access_token
-# and have role ADMIN
+
+# тест страницы админа
 @router.get("/securitypage")
 async def get_security_page(
     user: UserModel = Depends(CheckUserRole(allowed_roles=[RoleEnum.ADMIN]))
 ) -> dict:
-    default_logger.debug("Getting security page")
+    
+    default_logger.info("Getting admin page")
     return {"message": f"welcome to security page, {user.username}"}
 
 
-# get users
+# список пользователей
 @router.get("/", response_model=Sequence[UserDTO], 
             dependencies=[Depends(get_users_limiter)])
 async def get_users(limit: LIMIT_QUERY = 10,
@@ -119,7 +122,8 @@ async def get_users(limit: LIMIT_QUERY = 10,
     users = await user_service.get_users(limit, offset)
     return users
 
-# find users
+
+# поиск пользователей по никнейму
 @router.get("/search", response_model=Sequence[UserDTO], 
             dependencies=[Depends(find_users_limiter)])
 async def find_users(name: Annotated[str, Query(..., 
@@ -128,32 +132,35 @@ async def find_users(name: Annotated[str, Query(...,
                                                 title="searching username")], 
                      user_service: UserService = Depends(get_user_service)) -> Sequence[UserDTO]:
     
-    default_logger.info(f"Finding users by name {name}")
+    default_logger.info(f"Finding users  by name {name}: start")
     users = await user_service.find_user_by_name(name)
+    default_logger.info(f"Finding users by name {name}: found {len(users)} users")
     
     return users
         
 
+# эндпоинты с динамичными параметрами
 
-# routers with dynamic parameter
-
-# user profile
+# профиль пользователя
 @router.get("/{username}", 
             response_model=UserPublicProfileDTO,
             dependencies=[Depends(get_user_profile_limiter)])
 async def get_user_profile(
             username: Annotated[str, Path(min_length=5, max_length=20)], 
             user_service: UserService = Depends(get_user_service)) -> UserPublicProfileDTO:
-    try:
+    
+    try: 
         default_logger.info("Getting user profile: Trying")
-        
-        return await user_service.get_user_profile(username)
+        user_profile = await user_service.get_user_profile(username)
+        default_logger.info("Getting user profile: Found")
+        return user_profile
         
     except UserNotFoundException as e:
         default_logger.error("Getting user profile: Error. User not found")
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=str(e))
     
-# get user posts
+# список постов пользователя
 @router.get("/{username}/posts", response_model=PostListDTO,
             dependencies=[Depends(get_user_posts_limiter)])
 async def get_user_posts(username: Annotated[str, Path(min_length=5, max_length=20)],
@@ -161,57 +168,44 @@ async def get_user_posts(username: Annotated[str, Path(min_length=5, max_length=
                          offset: OFFSET_QUERY = 0, 
                          post_service: PostService = Depends(get_post_service)) -> PostListDTO:
     
-    default_logger.info("Getting user posts: start...")
-    
+    default_logger.info("Getting user posts: start")
     posts_list = await post_service.get_user_posts(username, limit, offset)
-    
-    default_logger.info("Getting user posts: done")
+    default_logger.info(f"Getting user posts: found {len(posts_list.posts)} posts")
     
     return posts_list
 
-# # get user comments
-# @router.get("/{username}/comments", 
-#             response_model=CommentWithoutRelationsDTO,
-#             dependencies=[Depends(RateLimiter(times=2, seconds=5))])
-# async def get_user_comments(
-#             username: Annotated[str, Path(min_length=5, max_length=20)],
-#             limit: LIMIT_QUERY = 10,
-#             offset: OFFSET_QUERY = 0, 
-#             comment_service: CommentService = Depends(get_comment_service)) -> CommentWithoutRelationsDTO:
-    
-#     default_logger.info("Getting user comments: start...")
-    
-#     posts_list = await post_service.get_user_posts(username, limit, offset)
-    
-#     default_logger.info("Getting user posts: done")
-    
-#     return posts_list
 
-
-# delete user
+# удалить пользователя
 @router.delete("/me", 
                dependencies=[Depends(delete_user_limiter)])
 async def delete_user(user: UserModel = Depends(get_user_from_token),
                       user_service: UserService = Depends(get_user_service)) -> dict:
     
     try:
-        default_logger.info("Deleting user: trying")
+        default_logger.info(f"Deleting user <{user.username}>: trying")
         await user_service.delete_user(user.id)
+        default_logger.info("Deleting user: deleted")
+        
         return {"message": "user deleted successfully"}
+    
     except UserNotFoundException as e:
         default_logger.error("Deleting user: Error. User not found")
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=str(e))
     
-# update user. any user fields exept password and email
+
+# обновлене обычных данных пользователя
 @router.patch("/me", response_model=UserDTO, 
               dependencies=[Depends(update_user_limiter)])
 async def update_user(user_data: UserPatchDTO,
                       user: UserModel = Depends(get_user_from_token),
                       user_service: UserService = Depends(get_user_service)) -> UserDTO:
     try:
-        default_logger.info("Updating user: Trying")
+        default_logger.info(f"Updating user <{user.username}>: Trying")
+        user_dto = await user_service.update_user(user.id, user_data)
+        default_logger.info("Updating user: done")
         
-        return await user_service.update_user(user.id, user_data)
+        return user_dto
     
     except UserNotFoundException as e:
         default_logger.error("Updating user: Error. User not found")
@@ -221,56 +215,64 @@ async def update_user(user_data: UserPatchDTO,
         default_logger.error("Updating user: Error. Such username alreay exists")
         raise HTTPException(status_code=400, detail=str(e))
     
-# update email
+
+# обновление почты
 @router.patch("/me/email", 
-              #dependencies=[Depends(update_user_limiter)])
-)
+              dependencies=[Depends(update_email_limiter)])
 async def update_user_email(email_data: UserPatchEmail,
                       user: UserModel = Depends(get_user_from_token),
                       user_service: UserService = Depends(get_user_service)) -> dict:
+    
     try:
-        default_logger.info("Updating user email: Trying")
-        
+        default_logger.info(f"Updating user <{user.username}> email: Trying")
         await user_service.update_email(user.id, email_data)
+        default_logger.info("Updating user email: done")
         
         return {"message": "email changed"}
     
     except UserNotFoundException as e:
         default_logger.error("Updating user email: Error. User not found")
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=str(e))
     
     except InvalidCredentialsException as e:
         default_logger.error("Updating user email: Error. Wrong confirm password")
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
     
     except EmailAlreadyExsistsException as e:
-        default_logger.error("Updating user password: Error. Email already taken")
-        raise HTTPException(status_code=400, detail=str(e))
+        default_logger.error("Updating user email: Error. Email already taken")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail=str(e))
     
     except UserException as e:
-        default_logger.error("Updating user password: Erro while comminting. {str(e)}")
-        raise HTTPException(status_code=500, detail="server error. try later")
+        default_logger.error("Updating user email: Error while commiting. {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                            detail="server error. try later")
 
-# update password
+
+# обновление пароля
 @router.patch("/me/password", 
-              #dependencies=[Depends(update_user_limiter)])
-)
+              dependencies=[Depends(update_password_limiter)])
 async def update_user_password(password_data: UserPatchPassword,
                       user: UserModel = Depends(get_user_from_token),
                       user_service: UserService = Depends(get_user_service)) -> dict:
+    
     try:
-        default_logger.info("Updating user password: Trying")
-        
+        default_logger.info(f"Updating user <{user.username}> password: Trying")
         await user_service.update_password(user.id, password_data)
+        default_logger.info("Updating user password: done")
         
         return {"message": "password changed"}
     
     except UserNotFoundException as e:
         default_logger.error("Updating user password: Error. User not found")
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
+                            detail=str(e))
     
     except InvalidCredentialsException as e:
         default_logger.error("Updating user password: Error. Wrong current password")
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, 
+                            detail=str(e))
     
     

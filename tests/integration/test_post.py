@@ -1,16 +1,16 @@
+import pytest
+
+from httpx import AsyncClient
+from uuid import UUID
+from typing import Any
+from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
+
 from source.models.post import PostModel
 from source.models.post_reaction import PostReactionModel
 from source.models.tag import TagModel
-from source.models.user import UserModel
-from sqlalchemy.ext.asyncio import AsyncSession
-from httpx import AsyncClient
-from sqlalchemy import select, text, delete
-from sqlalchemy.orm import selectinload
-from uuid import UUID
-import pytest
 from source.core.types import TypeReactionEnum
 from source.core.types import FileTypeEnum
-from typing import Any
 from source.cache.redis_backend import redis_backend
 
 
@@ -194,7 +194,9 @@ class TestPost:
         assert post.reactions.get(TypeReactionEnum.DISLIKE) == 0
         assert post.reactions.get(TypeReactionEnum.LIKE) == 0
         
-    async def test_get_all_existing_tags(self, db_session, async_client: AsyncClient):
+    async def test_get_all_existing_tags(self, 
+                                         db_session, 
+                                         async_client: AsyncClient):
         
         # очищаем старые теги
         await db_session.execute(delete(TagModel))
@@ -252,7 +254,6 @@ class TestPost:
     async def test_get_posts(self,
                              limit, offset, response_status_code, result_len,
                              prepared_100_posts,
-                             db_session: AsyncSession,
                              async_client: AsyncClient):
         
         if not limit and not offset:
@@ -464,44 +465,28 @@ class TestPost:
     @pytest.mark.parametrize(
             "query_params, expected_status, result_len", 
             [
-                # === Твои базовые тесты ===
                 ("", 422, None),
                 ("?posttile=qwe", 422, None),
                 ("?title=", 422, None),
                 ("?title=q", 422, None),
                 ("?title=qwerty", 200, 0), 
                 ("?title=my favorite films", 200, 1),
-                ("?title=game", 200, 3), # Изменил на 3, так как добавился "Super Game Max Pro"
+                ("?title=game", 200, 3),
                 ("?title=2025", 200, 1),
                 ("?title=HOW TO", 200, 1), 
                 ("?title=_", 422, None),
                 ("?title=   top five    ", 200, 1),
-
-                # === НОВЫЕ ТЕСТЫ ===
-
-                # 1. Опечатки (Fuzzy Search через триграммы)
                 ("?title=prograaming", 200, 1),  # Опечатка "aa" -> найдет "how to learn programming"
                 ("?title=filmz", 200, 1),        # Опечатка "z" -> найдет "my favorite films"
                 ("?title=wither", 200, 1),       # Опечатка/пропуск буквы -> найдет "The Witcher 3..."
-
-                # 2. Регистронезависимость и частичные совпадения (Разный регистр)
                 ("?title=pYtHoN", 200, 2),       # Найдет "Разработка на Python..." и "Python для..."
                 ("?title=LEARN", 200, 1),        # В верхнем регистре -> найдет "how to learn programming"
-
-                # 3. Кириллица (Проверка работы триграмм/FTS со славянскими символами)
                 ("?title=разработка", 200, 1),   # Точное совпадение на русском
                 ("?title=питон", 200, 0),        # Ошибка/транслитерация не сработает, но "?title=питон" вернет 404
                 ("?title=начинающих", 200, 1),   # Часть русской строки
-
-                # 4. Специальные символы и цифры
                 ("?title=Witcher 3", 200, 1),    # С цифрой
                 ("?title=FastAPI vs", 200, 1),   # Со спецсимволом (двоеточия/слэши обычно режутся FTS, проверяем триграммы)
-
-                # 5. Слишком сильные опечатки (??Должен быть 404, а не случайный пост)
                 ("?title=programminggzz", 200, 1), 
-
-                # 6. Несколько слов из разных постов (Проверка жадности поиска)
-                # Если ввести "Python Django", FTS или триграммы могут найти оба поста (один про Python, другой про Django)
                 ("?title=Python Django", 200, 3), # Найдет посты с Python (2 шт) + пост с Django (1 шт)
             ])
     async def test_find_posts(self,

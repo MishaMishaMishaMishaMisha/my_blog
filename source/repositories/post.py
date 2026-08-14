@@ -1,30 +1,33 @@
+from typing import Sequence, cast, Any
+from uuid import UUID
+from datetime import datetime, timedelta
+from sqlalchemy import select, delete, and_, func, text, bindparam, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload, defer, joinedload
+from sqlalchemy.orm.interfaces import ORMOption
+from sqlalchemy.sql.elements import BindParameter
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.exc import IntegrityError
+
 from source.models.post import PostModel
 from source.models.user import UserModel
 from source.models.tag import TagModel
-#from source.models.comment import CommentModel
 from source.models.attachment_media import AttachmentMediaModel
 from source.models.post_reaction import PostReactionModel
 from source.models.comment import CommentModel
-from source.schemas.post import PostAddDTO, PostPatchDTO, PostAddReactionDTO
+from source.schemas.post import (PostAddDTO, 
+                                 PostPatchDTO, 
+                                 PostAddReactionDTO)
 from source.services.storage.baseStorage import BaseStorage
-from sqlalchemy import select, delete, and_, update, func, text, bindparam, Integer
-from sqlalchemy.orm import selectinload, defer, joinedload
 from source.core.exceptions import (PostNotFoundException,
                                     FileNotFoundException,
                                     TagNotFoundException,
                                     CommittingException)
 from source.core.logger import default_logger
-from typing import Sequence, cast
-from uuid import UUID
 from source.core.types import TypeReactionEnum, post_language
-from sqlalchemy.orm.interfaces import ORMOption
 from source.core.types import PostsSortEnum, PeriodEnum
-from datetime import datetime, timedelta, UTC
-from typing import Any
-from sqlalchemy.sql.elements import BindParameter
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.exc import IntegrityError
+
+
 
 
 class PostRepository:
@@ -115,6 +118,17 @@ class PostRepository:
             raise PostNotFoundException("Post not found or you dont have permissions to delete this post")
         await self.db_session.commit()
     
+    async def delete_tag(self, tag_name: str) -> None:
+        query = (delete(TagModel)
+                 .where(TagModel.name==tag_name)
+                 .returning(TagModel.id))
+        result = await self.db_session.execute(query)
+        deleted_id = result.scalar_one_or_none()
+        if deleted_id is None:
+            default_logger.error(f"Deleting tag. Error. Tag {tag_name} not found")
+            raise TagNotFoundException("Tag not found")
+        await self.db_session.commit()
+    
     async def get_post_by_id(self, post_id: UUID, 
                              load_options: Sequence[ORMOption] | None = None) -> PostModel:
         
@@ -135,6 +149,7 @@ class PostRepository:
         
         return post
     
+    # получить весь пост с количество комментаиев, автором, реакией текущего пользователя
     async def get_post_with_data(self, 
             user_id: UUID | None,
             post_id: UUID, 
@@ -173,7 +188,8 @@ class PostRepository:
             raise PostNotFoundException("Post not found in db")
         
         return cast(tuple[PostModel, int, str, TypeReactionEnum | None], post)
-        
+    
+    # увеличить количество просмотров у всех переданных постов
     async def bulk_increment_views(self, updates: list[tuple[UUID, int]]) -> None:
         
         print(f"Post repo session id={id(self.db_session)}")
@@ -213,8 +229,8 @@ class PostRepository:
         await self.db_session.execute(query, params)
         default_logger.debug("Updating views count: query executed successfuly")
         # commit в другом месте делаем
-        
     
+    # список постов (превью) пользователя
     async def get_user_posts(self, username: str,
                              limit: int, offset: int) -> tuple[int, Sequence[tuple[PostModel, 
                                                                                    int,
@@ -268,7 +284,7 @@ class PostRepository:
         
         return cast(tuple[int, list[tuple[PostModel, int, str]]], (total_count, posts_data))
         
-
+    # список постов без тела (превью) с указанным тегом
     async def get_posts_with_tag(self, 
                                  tagname: str,
                                  limit: int, offset: int) -> tuple[int, Sequence[tuple[PostModel, 
@@ -327,7 +343,7 @@ class PostRepository:
         
         return cast(tuple[int, list[tuple[PostModel, int, str]]], (total_count, posts_data))
 
-
+    # список постов без тела (превью)
     async def get_posts(self, 
             limit: int, offset: int,
             sort: PostsSortEnum, period: PeriodEnum,
@@ -393,7 +409,6 @@ class PostRepository:
 
         return cast(tuple[int, list[tuple[PostModel, int, str]]], (total_count, posts))
 
-    
     async def get_posts_by_ids(self, 
                 post_ids: Sequence[UUID], 
                 load_options: Sequence[ORMOption] | None = None) -> Sequence[tuple[PostModel, 
@@ -423,7 +438,6 @@ class PostRepository:
         
         return cast(list[tuple[PostModel, int, str]], posts)
         
-    
     async def update_post(self, post_id: UUID, author_id: UUID, post_data: PostPatchDTO) -> PostModel:
         default_logger.debug("Updating post: start")
         
@@ -609,7 +623,8 @@ class PostRepository:
         default_logger.info("Adding reaction to post: reaction added")
         
         return (old_reaction, new_reaction)
-        
+    
+    # все существующие теги
     async def get_all_existing_tags(self,
                                     #limit: int, offset: int,
                                     load_options: Sequence[ORMOption] | None = None) -> Sequence[TagModel]:
@@ -621,7 +636,8 @@ class PostRepository:
             query = query.options(*load_options)
         res = await self.db_session.execute(query)
         return res.scalars().all()
-        
+       
+    # все теги поста 
     async def get_all_post_tags(self, post_id: UUID) -> list[TagModel]:
         query = (select(PostModel)
                  .where(PostModel.id==post_id)
@@ -633,6 +649,7 @@ class PostRepository:
         
         return post.tags
     
+    # все реакции под постом
     async def get_all_post_reactions(self, post_id: UUID) -> dict[TypeReactionEnum, int]:
         query = (select(PostModel)
                  .where(PostModel.id==post_id)
@@ -644,20 +661,21 @@ class PostRepository:
         
         return post.reactions
     
+    # количество комментариев под постом
     async def get_post_comments_count(self, post_id: UUID) -> int:
         query = (select(func.count(CommentModel.id))
                  .where(CommentModel.post_id == post_id))
         res = await self.db_session.execute(query)
         return res.scalar_one()
     
+    # получить оставленную реакцию пользователя
     async def get_user_reaction(self, post_id: UUID, user_id: UUID) -> TypeReactionEnum | None:
         query = (select(PostReactionModel.reaction_type)
                  .where(PostReactionModel.post_id == post_id,
                         PostReactionModel.user_id == user_id))
         res = await self.db_session.execute(query)
         return res.scalar()
-        
-    
+          
     async def find_tags_by_name(self, seacrhing_tag: str,
                                 load_options: Sequence[ORMOption] | None = None) -> Sequence[TagModel]:
         query = select(TagModel).where(TagModel.name.ilike(f"%{seacrhing_tag}%"))
@@ -707,7 +725,7 @@ class PostRepository:
         
         return cast(list[tuple[PostModel, int]], posts)
     
-    # find posts by title using trigramms
+    # поиск постов методом триграмм
     async def find_post_by_title_trigramms_method(
                 self, 
                 seacrhing_title: str,

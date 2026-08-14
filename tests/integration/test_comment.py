@@ -1,14 +1,16 @@
+import pytest
+
+from uuid import UUID
+from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from source.models.post import PostModel
 from source.models.comment_reaction import CommentReactionModel
 from source.models.comment import CommentModel
-from sqlalchemy.ext.asyncio import AsyncSession
-from httpx import AsyncClient
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-import pytest
 from source.core.types import TypeReactionEnum
 from source.core.utils import get_random_string
-from uuid import UUID
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -173,7 +175,6 @@ class TestComment:
         assert response.status_code == 404
         
     async def test_get_root_comments_and_replies(self, 
-                               db_session: AsyncSession, 
                                async_client: AsyncClient,
                                posts_factory,
                                users_factory,
@@ -363,7 +364,6 @@ class TestComment:
                                 users_factory,
                                          posts_factory,
                                          comments_factory,
-                                         db_session,
                                          async_client: AsyncClient):
         
         # создаем комментрий

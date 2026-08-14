@@ -1,12 +1,14 @@
-from datetime import datetime, timedelta, timezone
 import jwt
+
+from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from pydantic import ValidationError
+from uuid import UUID, uuid4
+from typing import Any
+
 from source.core.config import settings
 from source.core.types import RoleEnum, TokenTypeEnum
 from source.core.logger import default_logger
-from uuid import UUID, uuid4
-from typing import Any
 
 
 # configure passlib
@@ -25,7 +27,7 @@ def create_jwt_token(data: dict, expires_delta: timedelta) -> str:
     default_logger.debug("Creating jwt token")
     data_to_encode = data.copy()
     expire = datetime.now(timezone.utc) + expires_delta
-    data_to_encode.update({"exp": expire}) # add new pair
+    data_to_encode.update({"exp": expire}) # добавляем exp
     return jwt.encode(data_to_encode, settings.jwt.SECRET_KEY, algorithm=settings.jwt.ALGORITHM)
     
 

@@ -1,3 +1,8 @@
+from uuid import UUID
+
+from source.repositories.user import UserRepository
+from source.models.user import UserModel
+from source.cache.redis_backend import RedisBackend
 from source.core.logger import default_logger
 from source.core.exceptions import (InvalidTokenException, 
                                     UserAlreadyCreatedVerifyLink, 
@@ -8,10 +13,6 @@ from source.core.security import (create_verify_email_token,
                                   hash_password,
                                   get_token_expire_time_seconds_left)
 from source.core.types import TokenTypeEnum
-from uuid import UUID
-from source.repositories.user import UserRepository
-from source.models.user import UserModel
-from source.cache.redis_backend import RedisBackend
 from source.core.config import settings
 
 
@@ -46,8 +47,9 @@ class VerifyUserService:
             default_logger.error("Verifying email: Error. Invalid or expired token")
             raise InvalidTokenException("Invalid or expired token")
         
-        # check if in blacklist (user already opened this link)
-        is_token_in_blacklist = await self.redis_cache.get(key=f"verify-user-token:{payload.get("jti")}")
+        # проверяем пользовался ли пользователь этой ссылкой
+        is_token_in_blacklist = await self.redis_cache.get(
+                        key=f"verify-user-token:{payload.get("jti")}")
         if is_token_in_blacklist:
             default_logger.error("Verifying email: Error. Token in blacklist")
             raise InvalidTokenException("Token in blacklist")
@@ -56,7 +58,7 @@ class VerifyUserService:
         user_id = UUID(payload["sub"])
         user = await self.user_repo.verify_user(user_id)
         
-        # add token in blacklist
+        # добавим токен в блеклист
         time_left = get_token_expire_time_seconds_left(payload)
         if not time_left:
             default_logger.error("Verifying email: Error. Token havenot exp key")
@@ -66,7 +68,7 @@ class VerifyUserService:
                                    value=1, # значение не важно. главное наличие ключа
                                    ttl_seconds=time_left)
         
-        # delete user profile page from cache
+        # удалить профиль из кеша
         await self.redis_cache.delete(key=f"user-profile:{user.username}")
         
     async def create_resetPassword_link(self, user_id: UUID) -> str:
@@ -86,8 +88,6 @@ class VerifyUserService:
         
         return reset_link
 
-        
-    
     async def reset_password(self, token: str, new_password: str) -> None:    
         
         default_logger.debug("Checking reset password token")
@@ -96,8 +96,9 @@ class VerifyUserService:
             default_logger.error("Checking reset password token: Error. Invalid or expired token")
             raise InvalidTokenException("Invalid or expired token")
         
-        # check if in blacklist (user already changed password by this link)
-        is_token_in_blacklist = await self.redis_cache.get(key=f"reset-password-token:{payload.get("jti")}")
+        # проверяем пользовался ли юзер этой ссылкой
+        is_token_in_blacklist = await self.redis_cache.get(
+                        key=f"reset-password-token:{payload.get("jti")}")
         if is_token_in_blacklist:
             default_logger.error("Checking reset password token: Error. Token in blacklist")
             raise InvalidTokenException("Token in blacklist")
@@ -106,7 +107,7 @@ class VerifyUserService:
         hashed_password = hash_password(new_password)
         await self.user_repo.reset_password(user_id, hashed_password)
         
-        # add token in blacklist
+        # добавить токен в блеклист
         time_left = get_token_expire_time_seconds_left(payload)
         if not time_left:
             default_logger.error("Checking reset password token: Error. Token havenot exp key")
@@ -115,7 +116,6 @@ class VerifyUserService:
         await self.redis_cache.set(key=f"reset-password-token:{payload.get("jti")}",
                                    value=1, # значение не важно. главное наличие ключа
                                    ttl_seconds=time_left)
-        
         
     async def find_user_by_email(self, email: str) -> UserModel | None:
         return await self.user_repo.get_user_by(email=email)

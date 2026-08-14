@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from source.core.types import FileTypeEnum
 from fastapi import UploadFile
 
+from source.core.types import FileTypeEnum
 
+
+# slots=True нельзя будет добавить новые атрибуты
+# frozen=True нельзя изменить поля у экземпляра класса
 @dataclass(slots=True, frozen=True)
 class SavedFile:
     filename: str

@@ -1,11 +1,16 @@
-from source.repositories.user import UserRepository
-from source.core.exceptions import InvalidCredentialsException, InvalidTokenException
-from source.core.logger import default_logger
-from source.schemas.token import Token
-from source.core.types import TokenTypeEnum
-from source.core.security import verify_password, create_access_token, create_refresh_token, decode_token
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime
+
+from source.repositories.user import UserRepository
+from source.schemas.token import Token
+from source.core.exceptions import (InvalidCredentialsException, 
+                                    InvalidTokenException)
+from source.core.logger import default_logger
+from source.core.types import TokenTypeEnum
+from source.core.security import (verify_password, 
+                                  create_access_token, 
+                                  create_refresh_token, 
+                                  decode_token)
 
 
 class AuthService:
@@ -21,7 +26,6 @@ class AuthService:
         else:
             user = await self.user_repo.get_user_by(username=login)
         
-
         if not user:
             raise InvalidCredentialsException("Invalid email or username")
         

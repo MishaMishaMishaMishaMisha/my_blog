@@ -11,3 +11,4 @@ class TagDTO(BaseModel):
     name: str = Field(..., max_length=50)
     
     model_config = {'from_attributes': True}
+    

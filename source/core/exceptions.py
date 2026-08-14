@@ -3,6 +3,8 @@
 class CommittingException(Exception):
     pass
 
+
+
 class AuthException(Exception):
     """Базовое исключение для авторизации"""
     pass
@@ -16,7 +18,7 @@ class InvalidTokenException(AuthException):
 
 
 class UserException(Exception):
-    """Базовое искоючение для пользователей"""
+    """Базовое исключение для пользователей"""
     pass
 
 class UserNotFoundException(UserException):
@@ -46,7 +48,7 @@ class EmailAlreadyExsistsException(UserException):
 
 
 class PostException(Exception):
-    """Базовое искоючение для постов"""
+    """Базовое исключение для постов"""
     pass
 
 class PostNotFoundException(PostException):
@@ -55,7 +57,7 @@ class PostNotFoundException(PostException):
 
 
 class TagException(Exception):
-    """Базовое искоючение для тегов"""
+    """Базовое исключение для тегов"""
     pass
 
 class TagNotFoundException(TagException):
@@ -64,7 +66,7 @@ class TagNotFoundException(TagException):
 
 
 class CommentException(Exception):
-    """Базовое искоючение для комментариев"""
+    """Базовое исключение для комментариев"""
     pass
 
 class CommentNotFoundException(CommentException):
@@ -73,7 +75,7 @@ class CommentNotFoundException(CommentException):
 
 
 class FileException(Exception):
-    """Базовое искоючение для файлов"""
+    """Базовое исключение для файлов"""
     pass
 
 class NotAllowedFileTypeException(FileException):

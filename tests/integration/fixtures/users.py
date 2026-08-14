@@ -1,11 +1,13 @@
 import pytest
 import pytest_asyncio
+
 from source.models.user import UserModel
 from source.core.types import RoleEnum
 from source.core.utils import get_random_string
 from source.database.db_connect import async_session_factory
 
 
+# случайные данные пользователя
 @pytest.fixture
 def user_json():
     return {

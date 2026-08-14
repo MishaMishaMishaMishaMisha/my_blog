@@ -1,13 +1,15 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import text, ForeignKey, DateTime
-from source.models.base import BaseORMModel
 import uuid
-from datetime import datetime
+
+from sqlalchemy import text, ForeignKey, DateTime
 from sqlalchemy import CheckConstraint
-from source.core.types import MAX_UPLOADED_FILE_SIZE, FileTypeEnum, STORAGE_PATH
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import UUID as SQLAlchemy_UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pathlib import Path as PathDir
+from datetime import datetime
+
+from source.models.base import BaseORMModel
+from source.core.types import MAX_UPLOADED_FILE_SIZE, FileTypeEnum, STORAGE_PATH
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -36,12 +38,12 @@ class AttachmentMediaModel(BaseORMModel):
     # оригинальное имя файла. пример # cat.png
     orig_name: Mapped[str] = mapped_column(nullable=True)
 
-    filename: Mapped[str] # имя с присвоенным id. не url. пример 1234_cat.png
+    # имя с присвоенным id. не url. пример 1234_cat.png
+    filename: Mapped[str]
     
-    # video or image
     file_type: Mapped[FileTypeEnum] = mapped_column(SQLEnum(FileTypeEnum, native_enum=False))
     
-    # content type. for example "image/png" or "video/mp4"
+    # пример "image/png", "video/mp4"
     mime_type: Mapped[str]
     
     size: Mapped[int]
@@ -56,12 +58,11 @@ class AttachmentMediaModel(BaseORMModel):
     is_temporary: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     
     
-    # пост в котором может находится этот файл
+    # пост в котором находится этот файл
     post: Mapped["PostModel"] = relationship(back_populates="attachments")
     
-    # комментарий в котором может находится этот файл
+    # комментарий в котором находится этот файл
     comment: Mapped["CommentModel"] = relationship(back_populates="attachments")
-    
     
     
     @property
@@ -70,6 +71,4 @@ class AttachmentMediaModel(BaseORMModel):
     
     __table_args__ = (
         CheckConstraint(f"size <= {MAX_UPLOADED_FILE_SIZE}", name="ck_file_size"),
-        # файл не может быть одновременно быть в посте и в комментарии
-        #CheckConstraint("post_id IS NULL OR comment_id IS NULL", name="ck_attachment_single_owner")
     )

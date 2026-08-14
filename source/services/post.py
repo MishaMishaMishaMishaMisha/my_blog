@@ -1,22 +1,25 @@
-from source.repositories.post import PostRepository
-from source.models.post import PostModel
-from source.models.user import UserModel
-from source.models.tag import TagModel
-from source.schemas.post import PostAddDTO, PostPatchDTO, PostAddReactionDTO
-from source.core.logger import default_logger
-from uuid import UUID
-from source.core.types import TypeReactionEnum
-from typing import Sequence, Set, Any
-from sqlalchemy.orm import selectinload, joinedload
-from enum import Enum
-from sqlalchemy.orm.interfaces import ORMOption
-from source.core.types import PostsSortEnum, PeriodEnum
-from source.schemas.post import PostPreviewDTO, PostWithTagsDTO, PostListDTO, PostFullDTO, TagDTO
-from source.cache.redis_backend import RedisBackend
 import json
 
+from uuid import UUID
+from enum import Enum
+from typing import Sequence, Set, Any
+from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm.interfaces import ORMOption
 
-from source.tasks.views_count_task import update_views_count
+from source.cache.redis_backend import RedisBackend
+from source.repositories.post import PostRepository
+from source.models.post import PostModel
+from source.models.tag import TagModel
+from source.core.logger import default_logger
+from source.core.types import TypeReactionEnum
+from source.core.types import PostsSortEnum, PeriodEnum
+from source.schemas.post import PostAddDTO, PostPatchDTO, PostAddReactionDTO
+from source.schemas.post import (PostPreviewDTO, 
+                                 PostWithTagsDTO, 
+                                 PostListDTO, 
+                                 PostFullDTO, 
+                                 TagDTO,
+                                 TagCreateDTO)
 
 
 class PostLoadRelations(str, Enum):
@@ -51,6 +54,7 @@ class PostService:
         self.cache_post_commentsCount_key = "post:{post_id}:comments_count"
         self.cache_post_reactions_key = "post:{post_id}:reactions"
         self.cache_post_user_reaction_key = "post:{post_id}:user_reaction:{user_id}"
+        self.cache_tags_list_key = "tags_list"
         
         self.cache_posts_views = "post_views"
         
@@ -59,6 +63,7 @@ class PostService:
         self.cache_post_commentsCount_ttl = 86400
         self.cache_post_reactions_ttl = 86400
         self.cache_post_user_reaction_ttl = 600 # 10 minutes
+        self.cache_tags_list_ttl = 300 # 5 minutes
         
     async def create_new_post(self, new_post: PostAddDTO, author_id: UUID) -> PostWithTagsDTO: 
         
@@ -104,6 +109,10 @@ class PostService:
             
             await pipe.execute()
 
+        # обновляем кеш с тегами если были добавлены новые
+        if new_post.tags:
+            await self._check_if_new_tag_in_cache(new_post.tags)
+
         default_logger.debug("Adding post: post added to cache")
         
         return dto_post
@@ -145,10 +154,8 @@ class PostService:
         )
         raw_user_reaction = results[4] if user_id else None
 
-        # ----------------------------------------------------------------------
-        # СЦЕНАРИЙ А: В кэше НЕТ структуры поста (preview или body протухли)
-        # Делаем 1 тяжелый запрос к БД со всеми JOIN-ами
-        # ----------------------------------------------------------------------
+        # если в кеше нету preview либо body
+        # делаем полный запрос к бд
         if not raw_preview or not raw_body:
             
             default_logger.debug("Getting post: post not in cache. getting post from db")
@@ -231,10 +238,9 @@ class PostService:
 
             return post_dto
 
-        # ----------------------------------------------------------------------
-        # СЦЕНАРИЙ Б: Превью и Тело ЕСТЬ в кэше, но дособираем динамику (Fallbacks)
-        # ----------------------------------------------------------------------
-        
+
+        # пост есть в кеше
+        # проверяем отдельно комментарии и реакции в кеше
         default_logger.debug("Getting post: getting post from cache")
         
         preview = json.loads(raw_preview)
@@ -321,7 +327,7 @@ class PostService:
                                        post_id_str, 
                                        1)
 
-        # Возвращаем гарантированно полный DTO!
+        # Возвращаем полный DTO
         return PostFullDTO(
             id=UUID(preview["id"]),
             title=preview["title"],
@@ -404,6 +410,10 @@ class PostService:
         default_logger.debug("Updating post: deleting post from cache")
         await self.cache_redis.delete(self.cache_post_preview_key.format(post_id=post_id_str))
         await self.cache_redis.delete(self.cache_post_body_key.format(post_id=post_id_str))
+        
+        # обновляем кеш с тегами если были добавлены новые
+        if post_data.tags:
+            await self._check_if_new_tag_in_cache(post_data.tags)
         
         return PostWithTagsDTO.model_validate(db_post)
     
@@ -504,7 +514,6 @@ class PostService:
             ]
             return PostListDTO(total_count=total_count, posts=posts_dto)
 
-        # Если попали в кэш ленты (cached_feed существует) — гидрируем список DTO из Redis
         posts_dto = await self._fetch_previews_by_ids(post_ids, include)
         return PostListDTO(total_count=total_count, posts=posts_dto)
 
@@ -540,8 +549,27 @@ class PostService:
         return dto_tags
     
     async def get_all_post_tags(self, post_id: UUID) -> list[TagDTO]:
+        
+        tags_cached = await self.cache_redis.get(self.cache_tags_list_key)
+        if tags_cached:
+            default_logger.debug("Getting tags list from cache")
+            return [TagDTO.model_validate(tag) for tag in tags_cached]
+        
         db_tags = await self.post_repo.get_all_post_tags(post_id)
-        return [TagDTO.model_validate(tag_model) for tag_model in db_tags]
+        dto_tags = [TagDTO.model_validate(tag_model) for tag_model in db_tags]
+
+        default_logger.debug("Adding tags list to cache")
+        await self.cache_redis.set(key=self.cache_tags_list_key,
+                                   value=[tag.model_dump(mode="json") for tag in dto_tags], 
+                                   ttl_seconds=self.cache_tags_list_ttl)
+        
+        return dto_tags
+    
+    async def delete_tag(self, tag_name: str) -> None:
+        await self.post_repo.delete_tag(tag_name)
+        
+        default_logger.debug("Deleting tags list from cache")
+        await self.cache_redis.delete(key=self.cache_tags_list_key)
     
     async def get_all_post_reactions(self, post_id: UUID) -> dict[TypeReactionEnum, int]:
         return await self.post_repo.get_all_post_reactions(post_id)
@@ -581,6 +609,19 @@ class PostService:
     def add_loading_options(self, include: Set[PostLoadRelations]) -> Sequence[ORMOption]:
         return [self._LOAD_MAP[rel] for rel in include if rel in self._LOAD_MAP]
     
+    async def _check_if_new_tag_in_cache(self, new_tags: list[TagCreateDTO]):
+        # если в кеше нету тегов, ничего не делаем
+        tags_cached = await self.cache_redis.get(self.cache_tags_list_key)
+        if tags_cached is None:
+            return
+        
+        # если есть, ищем новые в списке (у которого id=None), 
+        # если хотя бы один есть - очищаем кеш
+        for tag in new_tags:
+            if tag.id is None:
+                await self.cache_redis.delete(self.cache_tags_list_key)
+                return
+        
     async def _cache_post_previews(self, posts_data: Sequence[tuple[Any, int, str]]) -> list[str]:
         """
         Кэширует превью постов и кол-во комментариев.

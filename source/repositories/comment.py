@@ -1,17 +1,22 @@
+from typing import Sequence, cast
+from uuid import UUID
+from sqlalchemy import select, delete, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload, aliased
+from sqlalchemy.orm.interfaces import ORMOption
+
 from source.models.comment import CommentModel
 from source.models.user import UserModel
 from source.models.comment_reaction import CommentReactionModel
 from source.models.attachment_media import AttachmentMediaModel
-from source.schemas.comment import CommentAddDTO, CommentPatchDTO, CommentAddReactionDTO
-from sqlalchemy import select, delete, and_, update, func
-from sqlalchemy.orm import selectinload, aliased
-from source.core.exceptions import CommentNotFoundException, UserNotFoundException, PostNotFoundException, FileNotFoundException
+from source.schemas.comment import (CommentAddDTO, 
+                                    CommentPatchDTO, 
+                                    CommentAddReactionDTO)
+from source.core.exceptions import (CommentNotFoundException, 
+                                    PostNotFoundException, 
+                                    FileNotFoundException)
 from source.core.logger import default_logger
-from typing import Sequence, cast
-from uuid import UUID
 from source.core.types import TypeReactionEnum
-from sqlalchemy.orm.interfaces import ORMOption
 from source.services.storage.baseStorage import BaseStorage
 
 
@@ -140,7 +145,8 @@ class CommentRepository:
             raise CommentNotFoundException("Comment not found in db")
         return comment
         
-    # корневые комментарии поста (то есть те которые НЕ являются ответами на другие комменты)
+    # получить корневые комментарии поста 
+    # (то есть те которые НЕ являются ответами на другие комменты)
     # вместе с количеством прямых ответов
     async def get_post_root_comments(self, 
             user_id: UUID | None,
@@ -195,7 +201,8 @@ class CommentRepository:
         
         return cast(list[tuple[CommentModel, str, int, TypeReactionEnum | None]], comments)
     
-    # корневые ответы на комментарий (ответы на другие комменты под этим комментом не учитываются)
+    # корневые ответы на комментарий 
+    # (ответы на другие комменты под этим комментом не учитываются)
     async def get_comment_root_replies(self, 
             user_id: UUID | None,
             comment_id: UUID, 
@@ -388,7 +395,8 @@ class CommentRepository:
     
         return (old_reaction, new_reaction)
 
-    async def get_all_comment_reactions(self, comment_id: UUID) -> dict[TypeReactionEnum, int]:
+    async def get_all_comment_reactions(self, 
+                                        comment_id: UUID) -> dict[TypeReactionEnum, int]:
 
         query = (select(CommentModel)
                  .where(CommentModel.id==comment_id)

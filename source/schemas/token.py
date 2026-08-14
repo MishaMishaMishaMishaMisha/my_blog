@@ -4,4 +4,4 @@ class Token(BaseModel):
     
     access_token: str
     refresh_token: str
-    token_type: str # type "bearer" by default
+    token_type: str # по умолчанию "bearer"

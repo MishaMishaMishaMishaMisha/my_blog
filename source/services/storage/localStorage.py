@@ -2,13 +2,12 @@ from pathlib import Path
 from shutil import copyfileobj
 from uuid import uuid4
 from fastapi import UploadFile
+
+from source.services.storage.baseStorage import BaseStorage, SavedFile
 from source.core.exceptions import FileWritingException
 from source.core.logger import default_logger
 from source.core.types import FileTypeEnum
-from source.services.storage.baseStorage import BaseStorage, SavedFile
 
-
-    
 
 class LocalStorage(BaseStorage):
 

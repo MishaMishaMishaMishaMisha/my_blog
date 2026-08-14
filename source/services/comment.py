@@ -1,19 +1,20 @@
+import json
+
+from datetime import datetime
+from uuid import UUID
+from enum import Enum
+from typing import Sequence, Set, Any
+from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm.interfaces import ORMOption
+
+from source.cache.redis_backend import RedisBackend
 from source.repositories.comment import CommentRepository
 from source.models.comment import CommentModel
 from source.schemas.comment import CommentAddDTO, CommentPatchDTO, CommentAddReactionDTO
 from source.schemas.comment import CommentWithReactionsDTO, CommentWithoutRelationsDTO
 from source.schemas.attachment import AttachmentDTO
 from source.core.logger import default_logger
-from uuid import UUID
 from source.core.types import TypeReactionEnum
-from typing import Sequence, Set, Any
-from sqlalchemy.orm import selectinload, joinedload
-from sqlalchemy.orm.interfaces import ORMOption
-from enum import Enum
-from source.cache.redis_backend import RedisBackend
-import json
-from datetime import datetime
-
 
 
 class CommentLoadRelations(str, Enum):
@@ -58,7 +59,7 @@ class CommentService:
         
         if new_comment.parent_id:
             _ = await self.comment_repo.get_comment_by_id(new_comment.parent_id)
-            # if parent comment not found, will be raise error and router catch it
+            # если parent не найден, будет вызвана ошибка которую отловит router
             # ответ появится через 30 секунд после обновления кеша
                
         db_comment = await self.comment_repo.add_comment(new_comment, author_id, post_id)
@@ -124,14 +125,9 @@ class CommentService:
                                        value=cur_value-1, 
                                        ttl_seconds=ttl)
     
-    async def get_comment_by_id(self, comment_id: UUID,
-                                include: Set[CommentLoadRelations] | None = None) -> CommentWithReactionsDTO:
-        
-        # check cache
-        # commentReactions_cached = await self.cache_redis.hgetall(
-        #     self.cache_comment_reactions_key.format(comment_id=comment_id))
-        # if commentReactions_cached:
-        #     print("!?!?!", commentReactions_cached)
+    async def get_comment_by_id(self, 
+                    comment_id: UUID,
+                    include: Set[CommentLoadRelations] | None = None) -> CommentWithReactionsDTO:
         
         options: Sequence[ORMOption] | None = None
         if include:
@@ -217,7 +213,6 @@ class CommentService:
     async def get_all_comment_reactions(self, comment_id: UUID) -> dict[TypeReactionEnum, int]:
         return await self.comment_repo.get_all_comment_reactions(comment_id)
     
-    # !
     async def get_all_post_root_comments(self, 
             user_id: UUID | None,
             post_id: UUID, 
@@ -279,7 +274,6 @@ class CommentService:
 
         return comments
     
-    # !
     async def get_comment_root_replies(self, 
                 user_id: UUID | None,
                 comment_id: UUID, 
