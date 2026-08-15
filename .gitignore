@@ -120,3 +120,11 @@ tests/media/*
 
 .gitignore
 source/tasks/__pycache__/delete_mediafiles_task.cpython-314.pyc
+
+.venv
+
+.mypy_cache
+
+.pytest_cache
+
+.vscode
