@@ -14,8 +14,11 @@ from source.routers.uploads import router as upload_router
 from source.routers.comments import router as comment_router
 from source.cache.redis_backend import redis_backend
 from source.core.logger import default_logger
+from source.core.types import STORAGE_PATH
 
 
+# Убеждаемся, что папка физически существует при старте приложения
+STORAGE_PATH.mkdir(parents=True, exist_ok=True)
 
 def create_app(with_lifespan: bool = True) -> FastAPI:
     
@@ -42,7 +45,7 @@ def create_app(with_lifespan: bool = True) -> FastAPI:
     # пример: http://127.0.0.1:8000/app/uploads/filename.png
     app.mount(
         "/app/uploads",
-        StaticFiles(directory="uploads"),
+        StaticFiles(directory=str(STORAGE_PATH)),
         name="uploads"
     )
 

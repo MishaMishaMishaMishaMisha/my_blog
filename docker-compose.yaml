@@ -4,7 +4,9 @@ x-base-app: &base_app
   build: .
   env_file: .env
   volumes:
-    - .:/app
+    #- .:/app
+    - ./source:/app/source # только код проекта
+    - uploads_data:/app/uploads # отдельно папка для локального хранилища
   depends_on:
     - postgres
     - redis
@@ -56,3 +58,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:
