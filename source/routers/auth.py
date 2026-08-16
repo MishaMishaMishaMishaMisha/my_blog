@@ -9,7 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import Annotated
 
 from source.models.user import UserModel
-from source.tasks.email_task import send_message_to_email
+from source.tasks.email_task import send_html_message_to_email
 from source.schemas.user import UserEmailDTO, UserResetPasswordDTO
 
 from source.core.logger import default_logger
@@ -136,9 +136,13 @@ async def resend_verify_email(user: UserModel = Depends(get_user_from_token),
     
     try:
         link = await verify_user_service.create_verify_link(user.id)
-        send_message_to_email.delay(user_email=user.email, 
-                                            msg_subject="Link for verification account", 
-                                            msg_body=link)
+        msg_data = verify_user_service.create_verify_email_msg_data(link, user.username)
+
+        send_html_message_to_email.delay(user_email=user.email, 
+                                         msg_subject=msg_data.get("subject"),
+                                         html_path=msg_data.get("template_path"),
+                                         context=msg_data.get("context"),
+                                         text_content=msg_data.get("text_version"))
         
         default_logger.info("Resend verification email: done")
         
@@ -195,6 +199,7 @@ async def forgot_password(email_data: UserEmailDTO,
     try:
         default_logger.info("User forgot password: sending msg to email")
         link = await verify_user_service.create_resetPassword_link(user.id)
+        msg_data = verify_user_service.create_reset_password_msg_data(link, user.username)
         
     except UserAlreadyCreatedResetpasswordLink as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
@@ -202,9 +207,20 @@ async def forgot_password(email_data: UserEmailDTO,
     
     else:
         # add task to celery
-        send_message_to_email.delay(user_email=user.email, 
-                                    msg_subject="Link for resetting password", 
-                                    msg_body=link)
+        
+        default_logger.info("!!before ceclery!!")
+        default_logger.info(f"data type= {type(msg_data)}")
+        default_logger.info(f"data= {msg_data}")
+        # default_logger.info("html pathp=", msg_data.get("template_path"))
+        # default_logger.info("context=", msg_data.get("context"))
+        # default_logger.info("text vers=", msg_data.get("text_version"))
+        default_logger.info("!!before ceclery!!")
+        
+        send_html_message_to_email.delay(user_email=user.email, 
+                                         msg_subject=msg_data.get("subject"),
+                                         html_path=msg_data.get("template_path"),
+                                         context=msg_data.get("context"),
+                                         text_content=msg_data.get("text_version"))
     
     default_logger.info("User forgot password: done")
     return {"message": "resetting password link send to email"}

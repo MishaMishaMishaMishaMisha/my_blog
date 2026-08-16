@@ -6,6 +6,9 @@ from pathlib import Path as PathDir
 from datetime import timedelta
 
 
+# название приложения
+APP_NAME = "MY BLOG"
+
 # язык на котором в основном будут посты. нужен для быстрого поиска
 post_language = 'english'
 

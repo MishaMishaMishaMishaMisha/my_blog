@@ -20,9 +20,9 @@ update_email_limiter = RateLimiter(times=2, seconds=10)
 login_limiter = RateLimiter(times=2, seconds=5, callback=custom_rate_limit_callback)
 logout_limiter = RateLimiter(times=1, seconds=5)
 refresh_token_limiter = RateLimiter(times=1, seconds=5)
-resend_verify_email_limiter = RateLimiter(times=1, seconds=60)
-verify_email_limiter = RateLimiter(times=1, seconds=10)
-forgot_password_email_limiter = RateLimiter(times=1, seconds=20)
+resend_verify_email_limiter = RateLimiter(times=2, seconds=10)
+verify_email_limiter = RateLimiter(times=1, seconds=5)
+forgot_password_email_limiter = RateLimiter(times=2, seconds=5)
 reset_password_limiter = RateLimiter(times=1, seconds=10)
 
 # uploads

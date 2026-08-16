@@ -22,9 +22,12 @@ class EmailService:
         
         return msg
 
-    def prepareHTML_EmailMsg(self, email_receiver: str, 
+    def prepareHTML_EmailMsg(self, 
+                             email_receiver: str, 
                              message_subject: str, 
-                             html_path: str) -> EmailMessage:
+                             html_path: str,
+                             context: dict,
+                             text_content: str) -> EmailMessage:
         
         default_logger.debug("Preparing html email message")
         msg = EmailMessage()
@@ -34,13 +37,20 @@ class EmailService:
         
         try:
             with open(html_path, "r", encoding="utf-8") as f:
-                html_content = f.read()
+                html_template = f.read()
+                # вставляем данные
+                html_content = html_template.format(**context)
+                
         except (FileNotFoundError, UnicodeDecodeError) as e:
             default_logger.error(f"Prepating htmp email message: Error. {e}")
             raise SendEmailHTMLOpeningException("error while opening html file")
         else:   
             
-            msg.add_alternative(html_content, subtype="hthml")
+            # Резервный текстовый вариант для старых клиентов и защиты от спама
+            msg.set_content(text_content)
+            
+            # html версия письма
+            msg.add_alternative(html_content, subtype="html")
             return msg
 
     def sendEmail(self, msg: EmailMessage) -> None:
@@ -73,3 +83,30 @@ class EmailService:
             
             
     
+    
+if __name__ == "__main__":
+    print("<email service>")
+    
+    link = "https://www.google.com/"
+    username = "Hunter"
+    
+    context = {"username": username,
+               "reset_password_link": link}
+    
+    text_version = "vot te ssilka: " + link
+    
+    es = EmailService()
+    msg = es.prepareHTML_EmailMsg(
+        email_receiver="misha162534@gmail.com",
+        message_subject="Privet. eto test",
+        html_path="source/templates/reset_password.html",
+        context=context,
+        text_content=text_version
+    )
+    
+    print("msg prepared")
+    
+    
+    es.sendEmail(msg)
+    
+    print("check email")

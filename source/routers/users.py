@@ -7,7 +7,7 @@ from fastapi import (APIRouter,
 from typing import Sequence, Annotated
 
 from source.models.user import UserModel
-from source.tasks.email_task import send_message_to_email
+from source.tasks.email_task import send_html_message_to_email
 
 from source.services.user import UserService
 from source.services.post import PostService
@@ -65,10 +65,13 @@ async def register_user(new_user: UserAddDTO,
         # отправка письма с подтверждением через celery
         default_logger.info("Adding new user: sending verification link to email")
         link = await verify_user_service.create_verify_link(user.id)
-        
-        send_message_to_email.delay(user_email=user.email, 
-                                    msg_subject="Link for verification account", 
-                                    msg_body=link)
+        msg_data = verify_user_service.create_verify_email_msg_data(link, user.username)
+
+        send_html_message_to_email.delay(user_email=user.email, 
+                                         msg_subject=msg_data.get("subject"),
+                                         html_path=msg_data.get("template_path"),
+                                         context=msg_data.get("context"),
+                                         text_content=msg_data.get("text_version"))
         
         return user
     

@@ -12,7 +12,7 @@ from source.core.security import (create_verify_email_token,
                                   decode_token, 
                                   hash_password,
                                   get_token_expire_time_seconds_left)
-from source.core.types import TokenTypeEnum
+from source.core.types import TokenTypeEnum, APP_NAME
 from source.core.config import settings
 
 
@@ -38,6 +38,21 @@ class VerifyUserService:
                                    ttl_seconds=settings.jwt.VERIFY_EMAIL_TOKEN_EXPIRE_HOURS * 3600)
         
         return verify_link
+    
+    def create_verify_email_msg_data(self, 
+                                 link: str,
+                                 username: str) -> dict:
+        
+        subject = f"Подтверждение аккаунта на приложении {APP_NAME}"
+        context = {"username": username, "verify_link": link}
+        template_path = "source/templates/verify_email.html"
+        text_version = f"Здравствуйте, {username}!\nДля \
+            подтверждения аккаунта перейдите по ссылке: {link}"
+        
+        return {"subject": subject,
+                "context": context,
+                "template_path": template_path,
+                "text_version": text_version}
     
     async def verify_email(self, token: str) -> None:
         
@@ -116,6 +131,21 @@ class VerifyUserService:
         await self.redis_cache.set(key=f"reset-password-token:{payload.get("jti")}",
                                    value=1, # значение не важно. главное наличие ключа
                                    ttl_seconds=time_left)
+  
+    def create_reset_password_msg_data(self, 
+                                 link: str,
+                                 username: str) -> dict:
+        
+        subject = f"Сброс пароля на приложении {APP_NAME}"
+        context = {"username": username, "reset_password_link": link}
+        template_path = "source/templates/reset_password.html"
+        text_version = f"Здравствуйте, {username}!\nДля сброса \
+            пароля перейдите по ссылке: {link}"
+        
+        return {"subject": subject,
+                "context": context,
+                "template_path": template_path,
+                "text_version": text_version}
         
     async def find_user_by_email(self, email: str) -> UserModel | None:
         return await self.user_repo.get_user_by(email=email)

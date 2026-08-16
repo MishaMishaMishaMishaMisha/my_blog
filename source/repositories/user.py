@@ -121,12 +121,13 @@ class UserRepository:
     # сделать is_verified=True если пользователь найден и не еще не подтвержден
     async def verify_user(self, user_id: UUID) -> UserModel:
         user = await self.get_user_by(id=user_id)
+        
         if not user:
             raise UserNotFoundException("User not found in db")
         if not user.is_active:
-            raise UserInactiveException()
+            raise UserInactiveException("User inactive")
         if user.is_verified:
-            raise UserAlreadyVerifiedException()
+            raise UserAlreadyVerifiedException("User already verified email")
         
         user.is_verified = True
         await self.db_session.commit()

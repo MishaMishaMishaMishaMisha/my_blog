@@ -1,4 +1,6 @@
 import logging
+from pathlib import Path
+import os
 
 
 class SimpleLoggerFactory:
@@ -14,26 +16,50 @@ class SimpleLoggerFactory:
         fmt: str | None = None,
         log_filter: logging.Filter | None = None,
     ):
+        
         self.logger = logging.getLogger(name)
+        
+        self.logger.setLevel(level)
+        
+        if handler is None:
+            handler = logging.StreamHandler()
 
-        # Чтобы не создавать дубликаты handler'ов
-        if not self.logger.handlers:
-            self.logger.setLevel(level)
+        if formatter is None:
+            formatter = logging.Formatter(fmt or self.DEFAULT_FMT, datefmt=self.DEFAULT_DATEFMT)
+            
+        handler.setFormatter(formatter)
+            
+        if log_filter is not None:
+            handler.addFilter(log_filter)
 
-            if handler is None:
-                handler = logging.StreamHandler()
+        self.logger.addHandler(handler)
+        
+        self.formatter = formatter
+        self.filter = log_filter
 
-            if formatter is None:
-                formatter = logging.Formatter(fmt or self.DEFAULT_FMT, datefmt=self.DEFAULT_DATEFMT)
+        # # Чтобы не создавать дубликаты handler'ов
+        # if not self.logger.handlers:
+        #     self.logger.setLevel(level)
 
-            handler.setFormatter(formatter)
+        #     if handler is None:
+        #         handler = logging.StreamHandler()
 
-            if log_filter is not None:
-                handler.addFilter(log_filter)
+        #     if formatter is None:
+        #         formatter = logging.Formatter(fmt or self.DEFAULT_FMT, datefmt=self.DEFAULT_DATEFMT)
 
-            self.logger.addHandler(handler)
+        #     handler.setFormatter(formatter)
+
+        #     if log_filter is not None:
+        #         handler.addFilter(log_filter)
+
+        #     self.logger.addHandler(handler)
 
     def add_handler(self, handler: logging.Handler) -> None:
+        handler.setFormatter(self.formatter)
+        
+        if self.filter is not None:
+            handler.addFilter(self.filter)
+        
         self.logger.addHandler(handler)
 
     def add_formatter(self, formatter: logging.Formatter, handler: logging.Handler | None = None) -> None:
@@ -55,6 +81,20 @@ class SimpleLoggerFactory:
         return self.logger
     
     
+if os.getenv("MODE") == "TEST":
+    # файл с логами из тестов будет лежать в папке tests/
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    logs_path = BASE_DIR / "tests/test_logs.log"
 
-# по умолчанию уровень DEBUG, вывод в консоль
-default_logger = SimpleLoggerFactory(name="default-logger").get_logger()
+else:
+    # файл с логами будет лежать в корневой папке проекта
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    logs_path = BASE_DIR / "logs.log"
+
+filehandler = logging.FileHandler(logs_path)
+
+loggger_factory = SimpleLoggerFactory(name="default-logger")
+loggger_factory.add_handler(filehandler)
+
+# логгер по умолчанию уровень DEBUG, вывод в консоль и в файл
+default_logger = loggger_factory.get_logger()
