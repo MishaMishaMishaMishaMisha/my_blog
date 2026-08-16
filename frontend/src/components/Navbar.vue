@@ -1,7 +1,7 @@
 <template>
   <header class="header">
     <div class="logo" @click="router.push('/')">
-      BLOG
+      MY BLOG
     </div>
 
     <template v-if="!isAuthPage">

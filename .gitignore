@@ -128,3 +128,5 @@ source/tasks/__pycache__/delete_mediafiles_task.cpython-314.pyc
 .pytest_cache
 
 .vscode
+logs.log
+tests/test_logs.log
