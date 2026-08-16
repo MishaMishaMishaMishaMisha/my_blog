@@ -46,6 +46,7 @@
             <h2>
               {{ profile.username }}
               <span v-if="profile.is_verified" class="verified-badge" title="Аккаунт подтвержден">✔</span>
+              <AdminBadge :role="profile.role" />
             </h2>
             <p class="last-seen">{{ formatLastSeen(profile.last_seen) }}</p>
           </div>
@@ -229,6 +230,9 @@
 
 
 <script setup lang="ts">
+
+import AdminBadge from '@/components/AdminBadge.vue'
+
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 

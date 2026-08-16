@@ -79,6 +79,3 @@ def get_token_expire_time_seconds_left(payload: dict[str, Any]) -> int | None:
 if __name__ == "__main__":
     print("security file")
     
-    token = create_jwt_token(data={}, expires_delta=timedelta(minutes=0))
-    payload = decode_token(token)
-    print(payload)

@@ -15,6 +15,7 @@ from source.routers.comments import router as comment_router
 from source.cache.redis_backend import redis_backend
 from source.core.logger import default_logger
 from source.core.types import STORAGE_PATH
+from source.database.init_admin import create_first_admin
 
 
 # Убеждаемся, что папка физически существует при старте приложения
@@ -26,8 +27,13 @@ def create_app(with_lifespan: bool = True) -> FastAPI:
         
         @asynccontextmanager
         async def lifespan(app: FastAPI):
+            
             await redis_backend.init_rate_limiter()
+            
+            await create_first_admin()
+            
             yield
+            
             await redis_backend.close()
 
         app = FastAPI(lifespan=lifespan)

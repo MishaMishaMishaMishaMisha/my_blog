@@ -3,12 +3,14 @@
 .vscode/launch.json
 .vscode/settings.json
 celerybeat-schedule
+source/database/__pycache__/*
 tests/__pycache__/__init__.cpython-314.pyc
 tests/__pycache__/conftest.cpython-314-pytest-9.1.0.pyc
 tests/__pycache__/test_calc.cpython-314-pytest-9.1.0.pyc
 tests/__pycache__/test_list.cpython-314-pytest-9.1.0.pyc
 tests/__pycache__/test_sum.cpython-314-pytest-9.1.0.pyc
 tests/__pycache__/test_weather_service.cpython-314-pytest-9.1.0.pyc
+tests/__pycache__/*
 tests/units/__pycache__/test_hash.cpython-314-pytest-9.1.0.pyc
 tests/units/__pycache__/test_jwt_token.cpython-314-pytest-9.1.0.pyc
 tests/units/__pycache__/test_local_storage.cpython-314-pytest-9.1.0.pyc

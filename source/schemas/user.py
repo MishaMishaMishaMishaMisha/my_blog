@@ -59,4 +59,6 @@ class UserPublicProfileDTO(BaseModel):
     posts_count: int = 0
     comments_count: int = 0
     
+    role: RoleEnum
+    
     model_config = {'from_attributes': True}  

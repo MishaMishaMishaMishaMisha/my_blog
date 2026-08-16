@@ -36,7 +36,8 @@
           </button>
 
           <span class="username" @click="openProfile">
-            {{ auth.user.username }}
+            {{ auth.user?.username }}
+            <AdminBadge :role="auth.user?.role" />
           </span>
 
           <button class="btn btn-outline" @click="logout">
@@ -62,6 +63,8 @@
 
 
 <script setup lang="ts">
+
+import AdminBadge from '@/components/AdminBadge.vue'
 
 import { useRouter } from "vue-router";
 
