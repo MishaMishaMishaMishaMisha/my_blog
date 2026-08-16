@@ -15,7 +15,7 @@ from source.models.tag import TagModel
 from source.models.attachment_media import AttachmentMediaModel
 from source.models.post_reaction import PostReactionModel
 from source.models.comment import CommentModel
-from source.schemas.post import (PostAddDTO, 
+from source.api.v1.schemas.post import (PostAddDTO, 
                                  PostPatchDTO, 
                                  PostAddReactionDTO)
 from source.services.storage.baseStorage import BaseStorage

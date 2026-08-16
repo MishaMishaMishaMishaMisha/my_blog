@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 from source.core.types import TypeReactionEnum
-from source.schemas.attachment import AttachmentDTO
+from source.api.v1.schemas.attachment import AttachmentDTO
 
 
 class CommentAddDTO(BaseModel):

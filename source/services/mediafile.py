@@ -1,7 +1,7 @@
 from uuid import UUID
 from fastapi import UploadFile
 
-from source.schemas.attachment import AttachmentDTO
+from source.api.v1.schemas.attachment import AttachmentDTO
 from source.services.storage.baseStorage import BaseStorage
 from source.repositories.mediafile import MediaFileRepository
 from source.models.attachment_media import AttachmentMediaModel

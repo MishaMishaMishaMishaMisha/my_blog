@@ -25,7 +25,7 @@ class TestPost:
         # without tags
         post: dict[str, Any] = {"title": "title1", "body": "body1"}
         response = await async_client.post(
-                            "/posts/", 
+                            "/api/v1/posts/", 
                             json=post, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -40,7 +40,7 @@ class TestPost:
         # with new tag
         post = {"title": "title1", "body": "body1", "tags": [{"name": "tag1"}]}
         response = await async_client.post(
-                            "/posts/", 
+                            "/api/v1/posts/", 
                             json=post, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -61,7 +61,7 @@ class TestPost:
                 "body": "body1", 
                 "tags": [{"name": "new-tag"}, {"id": tag_id, "name": "tag1"}]}
         response = await async_client.post(
-                            "/posts/", 
+                            "/api/v1/posts/", 
                             json=post, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -87,7 +87,7 @@ class TestPost:
         post_json["files_id"].append(str(attachment.id))
         
         response = await async_client.post(
-                            "/posts/", 
+                            "/api/v1/posts/", 
                             json=post_json, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
 
@@ -114,7 +114,7 @@ class TestPost:
         react_data = {"post_id": str(post.id),
                       "reaction_type": TypeReactionEnum.LIKE}
         response = await async_client.post(
-                            "/posts/react", 
+                            "/api/v1/posts/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -131,7 +131,7 @@ class TestPost:
         # добавление реакции на несуществующий пост
         react_data["post_id"] = str(UUID(int=0))
         response = await async_client.post(
-                            "/posts/react", 
+                            "/api/v1/posts/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         assert response.status_code == 404
@@ -149,7 +149,7 @@ class TestPost:
         react_data = {"post_id": str(post.id),
                       "reaction_type": TypeReactionEnum.LIKE}
         response = await async_client.post(
-                            "/posts/react", 
+                            "/api/v1/posts/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -166,7 +166,7 @@ class TestPost:
         # Меняем реакцию Like на  Dislike
         react_data["reaction_type"] = TypeReactionEnum.DISLIKE
         response = await async_client.post(
-                            "/posts/react", 
+                            "/api/v1/posts/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -183,7 +183,7 @@ class TestPost:
         await db_session.refresh(post)
         # пробуем поставить ту же реакцию еще раз (удалить реакцию)
         response = await async_client.post(
-                            "/posts/react", 
+                            "/api/v1/posts/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         query = (select(PostModel)
@@ -210,7 +210,7 @@ class TestPost:
         await db_session.commit()
         
         # получаем теги
-        response = await async_client.get("/posts/tags")
+        response = await async_client.get("/api/v1/posts/tags")
         assert response.status_code == 200
         assert len(tags) == len(response.json())   
 
@@ -223,7 +223,7 @@ class TestPost:
         post = posts[0]
         
         # получаем пост
-        response = await async_client.get(f"/posts/{post.id}")
+        response = await async_client.get(f"/api/v1/posts/{post.id}")
         assert response.status_code == 200
         
         post_response = response.json()
@@ -238,7 +238,7 @@ class TestPost:
         redis_views == 1
         
         # get post with wrong id
-        response = await async_client.get(f"/posts/{UUID(int=0)}")
+        response = await async_client.get(f"/api/v1/posts/{UUID(int=0)}")
         assert response.status_code == 404
         
     @pytest.mark.parametrize(
@@ -257,13 +257,13 @@ class TestPost:
                              async_client: AsyncClient):
         
         if not limit and not offset:
-            response = await async_client.get("/posts/")
+            response = await async_client.get("/api/v1/posts/")
         elif limit and offset:
-            response = await async_client.get(f"/posts/?limit={limit}&offset={offset}")
+            response = await async_client.get(f"/api/v1/posts/?limit={limit}&offset={offset}")
         elif limit:
-            response = await async_client.get(f"/posts/?limit={limit}")
+            response = await async_client.get(f"/api/v1/posts/?limit={limit}")
         else:
-            response = await async_client.get(f"/posts/?offset={offset}")
+            response = await async_client.get(f"/api/v1/posts/?offset={offset}")
 
         assert response.status_code == response_status_code
         if response_status_code == 200:
@@ -279,7 +279,7 @@ class TestPost:
         post = posts[0]
         
         
-        response = await async_client.delete(f"/posts/{post.id}",
+        response = await async_client.delete(f"/api/v1/posts/{post.id}",
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         assert response.status_code == 200
         
@@ -288,7 +288,7 @@ class TestPost:
         assert deleted_user is None
         
         # delete post with wrong id
-        response = await async_client.delete(f"/posts/{UUID(int=0)}",
+        response = await async_client.delete(f"/api/v1/posts/{UUID(int=0)}",
                             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         assert response.status_code == 404
            
@@ -320,7 +320,7 @@ class TestPost:
         posts = await posts_factory(users=[authenticated_user["user"]], count=1)
         post = posts[0]
         
-        response = await async_client.put(f"/posts/{post.id}", json=patch_post_data,
+        response = await async_client.put(f"/api/v1/posts/{post.id}", json=patch_post_data,
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         assert response.status_code == 200
         
@@ -335,7 +335,7 @@ class TestPost:
 
         
         # update post with wrong id
-        response = await async_client.put(f"/posts/{UUID(int=0)}", json={},
+        response = await async_client.put(f"/api/v1/posts/{UUID(int=0)}", json={},
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         assert response.status_code == 404
         
@@ -353,7 +353,7 @@ class TestPost:
         patch_post_data = {"tags": [{"id": tag.id, "name": tag.name},
                                     {"name": "new----tag"}]}
         
-        response = await async_client.put(f"/posts/{post.id}", json=patch_post_data,
+        response = await async_client.put(f"/api/v1/posts/{post.id}", json=patch_post_data,
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         assert response.status_code == 200
 
@@ -386,7 +386,7 @@ class TestPost:
                                          filename="newtestfile.png")
         attachments_id.append(str(attachments_new[0].id))
         
-        response = await async_client.put(f"/posts/{post.id}", json={"files_id": attachments_id},
+        response = await async_client.put(f"/api/v1/posts/{post.id}", json={"files_id": attachments_id},
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
         assert response.status_code == 200
@@ -395,7 +395,7 @@ class TestPost:
         
         # удалим старый файл
         attachments_id.remove(attachments_id[0])
-        response = await async_client.put(f"/posts/{post.id}", json={"files_id": attachments_id},
+        response = await async_client.put(f"/api/v1/posts/{post.id}", json={"files_id": attachments_id},
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
         assert response.status_code == 200
@@ -436,7 +436,7 @@ class TestPost:
         await db_session.commit()
         
         # получаем реакции поста
-        response = await async_client.get(f"/posts/{post.id}/reactions")
+        response = await async_client.get(f"/api/v1/posts/{post.id}/reactions")
         assert response.status_code == 200
         
         response_data = response.json()
@@ -455,7 +455,7 @@ class TestPost:
         post = posts[0]
         
         # получаем теги поста
-        response = await async_client.get(f"/posts/{post.id}/tags")
+        response = await async_client.get(f"/api/v1/posts/{post.id}/tags")
         assert response.status_code == 200
         
         response_data = response.json()
@@ -496,7 +496,7 @@ class TestPost:
                               prepared_10_posts,
                               async_client: AsyncClient):
         
-        response = await async_client.get(f"/posts/search{query_params}")
+        response = await async_client.get(f"/api/v1/posts/search{query_params}")
         assert response.status_code == expected_status
         if result_len is not None:
             assert len(response.json()["posts"]) == result_len
@@ -525,7 +525,7 @@ class TestPost:
                              async_client: AsyncClient):
         
         
-        response = await async_client.get(f"/posts/tags/search{query_params}")
+        response = await async_client.get(f"/api/v1/posts/tags/search{query_params}")
         assert response.status_code == expected_status
         if result_len:
             assert len(response.json()) == result_len
@@ -541,14 +541,14 @@ class TestPost:
         posts_user2 = await posts_factory(users=[users[1]], count=5)
 
 
-        response = await async_client.get(f"/users/{users[0].username}/posts")
+        response = await async_client.get(f"/api/v1/users/{users[0].username}/posts")
         assert response.status_code == 200
         res1 = response.json()
         assert res1["total_count"] == len(posts_user1)
         for i in range(len(posts_user1)):
             assert posts_user1[i].title == res1["posts"][i]["title"]
             
-        response = await async_client.get(f"/users/{users[1].username}/posts")
+        response = await async_client.get(f"/api/v1/users/{users[1].username}/posts")
         assert response.status_code == 200
         res2 = response.json()
         assert res2["total_count"] == len(posts_user2)
@@ -572,7 +572,7 @@ class TestPost:
         posts_with_1and2tag = await posts_factory(users=[user], count=1, tags=[tags[0], tags[1]])
         
         
-        response1 = await async_client.get(f"/posts/search-with-tag?tag={tagsname[0]}")
+        response1 = await async_client.get(f"/api/v1/posts/search-with-tag?tag={tagsname[0]}")
         assert response1.status_code == 200
         res1 = response1.json()
         assert res1["total_count"] == len(posts_with_1tag) + len(posts_with_1and2tag)
@@ -582,7 +582,7 @@ class TestPost:
             else:
                 assert p["tags"][0]["name"] == tagsname[0]
         
-        response2 = await async_client.get(f"/posts/search-with-tag?tag={tagsname[1]}")
+        response2 = await async_client.get(f"/api/v1/posts/search-with-tag?tag={tagsname[1]}")
         assert response2.status_code == 200
         res2 = response2.json()
         assert res2["total_count"] == len(posts_with_2tag) + len(posts_with_1and2tag)

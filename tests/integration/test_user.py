@@ -35,7 +35,7 @@ class TestUser:
         keys = ["username", "email", "password"]
         user = dict(zip(keys, user_data))
         
-        response = await async_client.post("/users/register", json=user)
+        response = await async_client.post("/api/v1/users/register", json=user)
 
         assert response.status_code == respnonse_status_code
         
@@ -54,7 +54,7 @@ class TestUser:
                             async_client: AsyncClient):
         
         
-        response = await async_client.get(f"/users/{one_user.username}")
+        response = await async_client.get(f"/api/v1/users/{one_user.username}")
         assert response.status_code == 200
         user_json = response.json()
         
@@ -66,7 +66,7 @@ class TestUser:
         assert user_json.get("last_seen", None) != None  
         
         # несущестующее имя
-        response = await async_client.get(f"/users/notexistinguser1234")
+        response = await async_client.get(f"/api/v1/users/notexistinguser1234")
         assert response.status_code == 404
 
     @pytest.mark.parametrize(
@@ -84,13 +84,13 @@ class TestUser:
                              async_client: AsyncClient):
         
         if not limit and not offset:
-            response = await async_client.get("/users/")
+            response = await async_client.get("/api/v1/users/")
         elif limit and offset:
-            response = await async_client.get(f"/users/?limit={limit}&offset={offset}")
+            response = await async_client.get(f"/api/v1/users/?limit={limit}&offset={offset}")
         elif limit:
-            response = await async_client.get(f"/users/?limit={limit}")
+            response = await async_client.get(f"/api/v1/users/?limit={limit}")
         else:
-            response = await async_client.get(f"/users/?offset={offset}")
+            response = await async_client.get(f"/api/v1/users/?offset={offset}")
 
         assert response.status_code == response_status_code
         assert len(response.json()) == result_len
@@ -101,7 +101,7 @@ class TestUser:
                                async_client: AsyncClient):
         
         response = await async_client.delete(
-                    "users/me",
+                    "/api/v1/users/me",
                     headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         assert response.status_code == 200
         
@@ -122,7 +122,7 @@ class TestUser:
         data = {"username": "newnickname"}
         
         response = await async_client.patch(
-                        "/users/me", 
+                        "/api/v1/users/me", 
                         json=data,
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -133,7 +133,7 @@ class TestUser:
         # смена имени на уже сущестующее
         data["username"] = existing_usernme
         response = await async_client.patch(
-                        "/users/me", 
+                        "/api/v1/users/me", 
                         json=data,
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -156,7 +156,7 @@ class TestUser:
         data = {"confirm_password": password, "new_email": "newemail321@gmail.com"}
         
         response = await async_client.patch(
-                        "/users/me/email", 
+                        "/api/v1/users/me/email", 
                         json=data,
                         headers={"Authorization": f"Bearer {user["access_token"]}"})
         
@@ -165,7 +165,7 @@ class TestUser:
         # смена почты на уже сущестующее
         data["new_email"] = existing_email
         response = await async_client.patch(
-                        "/users/me/email", 
+                        "/api/v1/users/me/email", 
                         json=data,
                         headers={"Authorization": f"Bearer {user["access_token"]}"})
         
@@ -187,21 +187,21 @@ class TestUser:
         data = {"current_password": password, "new_password": new_password}
         
         response = await async_client.patch(
-                        "/users/me/password", 
+                        "/api/v1/users/me/password", 
                         json=data,
                         headers={"Authorization": f"Bearer {user["access_token"]}"})
         
         assert response.status_code == 200
         
         # проверяем что пароль поменялся
-        response = await async_client.post("/auth/login", data={"username": user["user"].username,
+        response = await async_client.post("/api/v1/auth/login", data={"username": user["user"].username,
                                                                 "password": new_password})
         assert response.status_code == 200
         
         # смена пароля с указанием неверного текущего
         data["current_password"] = "ghi45oyt94ogh48oth4goh"
         response = await async_client.patch(
-                        "/users/me/password", 
+                        "/api/v1/users/me/password", 
                         json=data,
                         headers={"Authorization": f"Bearer {user["access_token"]}"})
         
@@ -231,7 +231,7 @@ class TestUser:
                              prepared_3_users,
                              async_client: AsyncClient):
         
-        response = await async_client.get(f"/users/search{query_params}")
+        response = await async_client.get(f"/api/v1/users/search{query_params}")
         assert response.status_code == expected_status
         if result_len:
             assert len(response.json()) == result_len
@@ -242,24 +242,24 @@ class TestUser:
                                       user_json):
         
         # регистрируем пользователя
-        response = await async_client.post("/users/register", json=user_json)
+        response = await async_client.post("/api/v1/users/register", json=user_json)
         assert response.status_code == 200
         
         # получение страницы без аутентификации
-        response = await async_client.get("/users/me")
+        response = await async_client.get("/api/v1/users/me")
         assert response.status_code == 401
         
         # передача неверного токена
-        response = await async_client.get("/users/me", headers={"Authorization": "Bearer 12345"})
+        response = await async_client.get("/api/v1/users/me", headers={"Authorization": "Bearer 12345"})
         assert response.status_code == 401
         
         # логинимся и сохраняем токен
-        response = await async_client.post("/auth/login", data={"username": user_json["email"],
+        response = await async_client.post("/api/v1/auth/login", data={"username": user_json["email"],
                                                                 "password": user_json["password"]})
         access_token = response.json().get("access_token", None)
         
         # получение защищенной страницы
-        response = await async_client.get("/users/me", headers={"Authorization": f"Bearer {access_token}"})
+        response = await async_client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 200
         
     # страница которая доступна только админу
@@ -272,16 +272,16 @@ class TestUser:
         access_token_admin = authenticated_admin["access_token"]
         
         # try to get security page
-        response_user = await async_client.get("/users/securitypage", 
+        response_user = await async_client.get("/api/v1/users/securitypage", 
                                                headers={"Authorization": f"Bearer {access_token_user}"})
         assert response_user.status_code == 403
         
-        response_admin = await async_client.get("/users/securitypage", 
+        response_admin = await async_client.get("/api/v1/users/securitypage", 
                                                 headers={"Authorization": f"Bearer {access_token_admin}"})
         assert response_admin.status_code == 200
         
         # try to get page with incorrect token
-        response = await async_client.get("/users/securitypage", 
+        response = await async_client.get("/api/v1/users/securitypage", 
                                           headers={"Authorization": f"Bearer {12345}"})
         assert response.status_code == 401
     

@@ -10,7 +10,7 @@ from source.main import create_app
 from source.database.db_connect import async_engine, async_session_factory
 from source.models.base import BaseORMModel
 from source.services.email import EmailService
-from source.dependencies.rate_limit import disable_all_rate_limiters
+from source.api.v1.dependencies.rate_limit import disable_all_rate_limiters
 
 
 # Автоматический мок для отправки писем во всех тестах

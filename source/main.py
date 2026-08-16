@@ -7,11 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from source.routers.users import router as user_router
-from source.routers.auth import router as auth_router
-from source.routers.posts import router as post_router
-from source.routers.uploads import router as upload_router
-from source.routers.comments import router as comment_router
+from source.api.v1.routers.api_v1_router import api_v1_router
 from source.cache.redis_backend import redis_backend
 from source.core.logger import default_logger
 from source.core.types import STORAGE_PATH
@@ -41,11 +37,7 @@ def create_app(with_lifespan: bool = True) -> FastAPI:
     else:
         app = FastAPI()
         
-    app.include_router(user_router)
-    app.include_router(auth_router)
-    app.include_router(post_router)
-    app.include_router(comment_router)
-    app.include_router(upload_router)
+    app.include_router(api_v1_router)
     
     # скачивание файлов
     # пример: http://127.0.0.1:8000/app/uploads/filename.png

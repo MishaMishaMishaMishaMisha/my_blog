@@ -75,7 +75,6 @@ export async function getCurrentUser() {
 
 export async function verifyEmail(token: string) {
 
-    //const response = await api.get("/auth/verify-email?token={token}")
     const response = await api.get("/auth/verify-email", {
         params: {
             token,

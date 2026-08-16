@@ -8,8 +8,8 @@ from typing import Sequence, Annotated
 
 from source.models.user import UserModel
 
-from source.schemas.post import PostAddDTO, PostPatchDTO, PostAddReactionDTO, TagDTO
-from source.schemas.post import PostWithTagsDTO, PostListDTO, PostFullDTO
+from source.api.v1.schemas.post import PostAddDTO, PostPatchDTO, PostAddReactionDTO, TagDTO
+from source.api.v1.schemas.post import PostWithTagsDTO, PostListDTO, PostFullDTO
 
 from source.services.post import PostService
 from source.services.post import PostLoadRelations
@@ -24,11 +24,11 @@ from source.core.types import (POST_ID_TYPE, LIMIT_QUERY, OFFSET_QUERY,
                                SORT_QUERY, PERIOD_QUERY, PostsSortEnum, PeriodEnum,
                                RoleEnum)
 
-from source.dependencies.post import get_post_service
-from source.dependencies.auth import (get_user_from_token, 
+from source.api.v1.dependencies.post import get_post_service
+from source.api.v1.dependencies.auth import (get_user_from_token, 
                                       get_user_or_none_from_token,
                                       CheckUserRole)
-from source.dependencies.rate_limit import (create_post_limiter,
+from source.api.v1.dependencies.rate_limit import (create_post_limiter,
                                             get_posts_limiter,
                                             react_to_post_limiter,
                                             get_tags_limiter,

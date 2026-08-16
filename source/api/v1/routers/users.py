@@ -13,8 +13,8 @@ from source.services.user import UserService
 from source.services.post import PostService
 from source.services.verify_user import VerifyUserService
 
-from source.schemas.post import PostListDTO
-from source.schemas.user import (UserAddDTO, 
+from source.api.v1.schemas.post import PostListDTO
+from source.api.v1.schemas.user import (UserAddDTO, 
                                  UserDTO, 
                                  UserPatchDTO, 
                                  UserPatchPassword,
@@ -30,11 +30,11 @@ from source.core.exceptions import (UserException,
                                     InvalidCredentialsException,
                                     UserAlreadyCreatedVerifyLink)
 
-from source.dependencies.user import get_user_service
-from source.dependencies.post import get_post_service
-from source.dependencies.verify_user import get_verify_user_service
-from source.dependencies.auth import get_user_from_token, CheckUserRole
-from source.dependencies.rate_limit import (register_rate_limiter,
+from source.api.v1.dependencies.user import get_user_service
+from source.api.v1.dependencies.post import get_post_service
+from source.api.v1.dependencies.verify_user import get_verify_user_service
+from source.api.v1.dependencies.auth import get_user_from_token, CheckUserRole
+from source.api.v1.dependencies.rate_limit import (register_rate_limiter,
                                             get_me_limiter,
                                             get_users_limiter,
                                             find_users_limiter,

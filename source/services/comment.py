@@ -10,9 +10,9 @@ from sqlalchemy.orm.interfaces import ORMOption
 from source.cache.redis_backend import RedisBackend
 from source.repositories.comment import CommentRepository
 from source.models.comment import CommentModel
-from source.schemas.comment import CommentAddDTO, CommentPatchDTO, CommentAddReactionDTO
-from source.schemas.comment import CommentWithReactionsDTO, CommentWithoutRelationsDTO
-from source.schemas.attachment import AttachmentDTO
+from source.api.v1.schemas.comment import CommentAddDTO, CommentPatchDTO, CommentAddReactionDTO
+from source.api.v1.schemas.comment import CommentWithReactionsDTO, CommentWithoutRelationsDTO
+from source.api.v1.schemas.attachment import AttachmentDTO
 from source.core.logger import default_logger
 from source.core.types import TypeReactionEnum
 

@@ -8,7 +8,7 @@ from source.repositories.user import UserRepository
 from source.models.user import UserModel
 from source.services.user import UserService
 from source.services.auth import AuthService
-from source.dependencies.user import get_user_service
+from source.api.v1.dependencies.user import get_user_service
 from source.core.exceptions import UserNotFoundException
 from source.core.types import RoleEnum, TokenTypeEnum
 from source.core.security import decode_token

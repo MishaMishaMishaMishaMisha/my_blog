@@ -9,8 +9,8 @@ from datetime import datetime, timedelta, timezone
 from source.repositories.user import UserRepository
 from source.models.user import UserModel
 from source.cache.redis_backend import RedisBackend
-from source.schemas.user import UserDTO
-from source.schemas.user import (UserAddDTO, 
+from source.api.v1.schemas.user import UserDTO
+from source.api.v1.schemas.user import (UserAddDTO, 
                                  UserPatchDTO, 
                                  UserPatchPassword,
                                  UserPatchEmail,

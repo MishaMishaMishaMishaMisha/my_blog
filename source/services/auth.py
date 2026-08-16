@@ -2,7 +2,7 @@ from uuid import UUID
 from datetime import datetime
 
 from source.repositories.user import UserRepository
-from source.schemas.token import Token
+from source.api.v1.schemas.token import Token
 from source.core.exceptions import (InvalidCredentialsException, 
                                     InvalidTokenException)
 from source.core.logger import default_logger

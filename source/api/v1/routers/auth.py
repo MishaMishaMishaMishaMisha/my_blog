@@ -10,7 +10,7 @@ from typing import Annotated
 
 from source.models.user import UserModel
 from source.tasks.email_task import send_html_message_to_email
-from source.schemas.user import UserEmailDTO, UserResetPasswordDTO
+from source.api.v1.schemas.user import UserEmailDTO, UserResetPasswordDTO
 
 from source.core.logger import default_logger
 from source.core.exceptions import (InvalidCredentialsException,
@@ -24,10 +24,10 @@ from source.core.exceptions import (InvalidCredentialsException,
 from source.services.auth import AuthService
 from source.services.verify_user import VerifyUserService
 
-from source.dependencies.auth import get_auth_service
-from source.dependencies.auth import get_user_from_token
-from source.dependencies.verify_user import get_verify_user_service
-from source.dependencies.rate_limit import (login_limiter,
+from source.api.v1.dependencies.auth import get_auth_service
+from source.api.v1.dependencies.auth import get_user_from_token
+from source.api.v1.dependencies.verify_user import get_verify_user_service
+from source.api.v1.dependencies.rate_limit import (login_limiter,
                                             logout_limiter,
                                             refresh_token_limiter,
                                             resend_verify_email_limiter,

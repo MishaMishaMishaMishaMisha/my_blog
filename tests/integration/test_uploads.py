@@ -4,7 +4,7 @@ import io
 from httpx import AsyncClient
 from pathlib import Path
 
-from source.dependencies.mediafile import get_mediafile_service
+from source.api.v1.dependencies.mediafile import get_mediafile_service
 from source.services.mediafile import MediaFileService
 from source.repositories.mediafile import MediaFileRepository
 from source.services.storage.localStorage import LocalStorage
@@ -31,7 +31,7 @@ class TestUploads:
         file_name = "test_image.png"
         
         response = await async_client.post(
-            "/upload/one-file",
+            "/api/v1/upload/one-file",
             files={"file": (file_name, io.BytesIO(file_data), "image/png")},
             headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"}
         )

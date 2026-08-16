@@ -7,11 +7,11 @@ from fastapi import (APIRouter,
 from typing import Sequence, Annotated
 
 from source.models.user import UserModel
-from source.schemas.attachment import AttachmentDTO
+from source.api.v1.schemas.attachment import AttachmentDTO
 from source.services.mediafile import MediaFileService
-from source.dependencies.mediafile import get_mediafile_service
-from source.dependencies.auth import get_user_from_token
-from source.dependencies.rate_limit import upload_limiter
+from source.api.v1.dependencies.mediafile import get_mediafile_service
+from source.api.v1.dependencies.auth import get_user_from_token
+from source.api.v1.dependencies.rate_limit import upload_limiter
 from source.core.exceptions import (FileAddingException, 
                                     NotAllowedFileTypeException, 
                                     FileWritingException)

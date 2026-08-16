@@ -16,11 +16,11 @@ class TestAuth:
                               user_json):
         
         # регистрация
-        response = await async_client.post("/users/register", json=user_json)
+        response = await async_client.post("/api/v1/users/register", json=user_json)
         assert response.status_code == 200
         
         # вход через имя
-        response = await async_client.post("/auth/login", data={"username": user_json["username"],
+        response = await async_client.post("/api/v1/auth/login", data={"username": user_json["username"],
                                                                 "password": user_json["password"]})
         
         assert response.status_code == 200
@@ -29,7 +29,7 @@ class TestAuth:
         assert response.cookies.get("refresh_token", None) is not None
         
         # вход через почту
-        response = await async_client.post("/auth/login", data={"username": user_json["email"],
+        response = await async_client.post("/api/v1/auth/login", data={"username": user_json["email"],
                                                                 "password": user_json["password"]})
         
         assert response.status_code == 200
@@ -38,7 +38,7 @@ class TestAuth:
         assert response.cookies.get("refresh_token", None) is not None
         
         # неправильный логин
-        response = await async_client.post("/auth/login", data={"username": "aaaaaaaaaaaaaa",
+        response = await async_client.post("/api/v1/auth/login", data={"username": "aaaaaaaaaaaaaa",
                                                                 "password": user_json["password"]})
         assert response.status_code == 401
         data = response.json()
@@ -46,7 +46,7 @@ class TestAuth:
         assert response.cookies.get("refresh_token", None) is None
         
         # неправильный пароль
-        response = await async_client.post("/auth/login", data={"username": user_json["username"],
+        response = await async_client.post("/api/v1/auth/login", data={"username": user_json["username"],
                                                                 "password": "qqqqqqqqqqqqq"})
         assert response.status_code == 401
         data = response.json()
@@ -60,14 +60,14 @@ class TestAuth:
         refresh_token = authenticated_user["refresh_token"]
         assert refresh_token is not None
         
-        response = await async_client.post("/auth/logout",
+        response = await async_client.post("/api/v1/auth/logout",
                                           cookies={"refresh_token": refresh_token})
         
         assert response.status_code == 200
         assert response.cookies.get("refresh_token", None) is None
         
         # выход без refresh token
-        response = await async_client.post("/auth/logout")
+        response = await async_client.post("/api/v1/auth/logout")
         assert response.status_code == 200
         assert response.cookies.get("refresh_token", None) is None
         
@@ -76,11 +76,11 @@ class TestAuth:
                                         user_json):
         
         # регистрация
-        response = await async_client.post("/users/register", json=user_json)
+        response = await async_client.post("/api/v1/users/register", json=user_json)
         assert response.status_code == 200
         
         # вход и сохранение токенов
-        response = await async_client.post("/auth/login", data={"username": user_json["email"],
+        response = await async_client.post("/api/v1/auth/login", data={"username": user_json["email"],
                                                                 "password": user_json["password"]})
         
         access_token = response.json().get("access_token", None)
@@ -92,7 +92,7 @@ class TestAuth:
         await asyncio.sleep(1)
         
         # обновление токенов
-        response = await async_client.post("/auth/refresh", cookies={"refresh_token": refresh_token})
+        response = await async_client.post("/api/v1/auth/refresh", cookies={"refresh_token": refresh_token})
         assert response.status_code == 200
         data = response.json()
         assert data.get("access_token", None) is not None
@@ -107,14 +107,14 @@ class TestAuth:
                                        mock_email_service): 
 
         response = await async_client.post(
-                "/auth/resend-verification-email",
+                "/api/v1/auth/resend-verification-email",
                 headers={"Authorization": f"Bearer {authenticated_notVerified_user["access_token"]}"})
         assert response.status_code == 200
         # должен быть вызван сервис по отвравке письма
         assert mock_email_service.call_count == 1
         
         response = await async_client.post(
-                "/auth/resend-verification-email",
+                "/api/v1/auth/resend-verification-email",
                 headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         assert response.status_code == 200
         # письмо не должно быть отправлено
@@ -134,12 +134,12 @@ class TestAuth:
         verify_link = await verify_service.create_verify_link(user_id)        
         
         token = verify_link.split("=")[1]
-        response = await async_client.get("/auth/verify-email?token=" + token)
+        response = await async_client.get("/api/v1/auth/verify-email?token=" + token)
         assert response.status_code == 200
         
         # проверяем что пользователь теперь подтверждет
         response = await async_client.post(
-                "/auth/resend-verification-email",
+                "/api/v1/auth/resend-verification-email",
                 headers={"Authorization": f"Bearer {access_token}"})
         assert response.status_code == 200
         # письмо не должно быть отправлено
@@ -147,7 +147,7 @@ class TestAuth:
         assert response.json()["message"] == "your account already verified"
         
         # переход по той же ссылке второй раз
-        response = await async_client.get("/auth/verify-email?token=" + token)
+        response = await async_client.get("/api/v1/auth/verify-email?token=" + token)
         assert response.status_code == 401
 
     async def test_forgot_password_email(self,
@@ -157,13 +157,13 @@ class TestAuth:
 
         email = authenticated_user["user"].email
 
-        response = await async_client.post("/auth/forgot-password", json={"user_email": email})
+        response = await async_client.post("/api/v1/auth/forgot-password", json={"user_email": email})
         assert response.status_code == 200
         # должен быть вызван сервис по отвравке письма
         assert mock_email_service.call_count == 1
         
         # повторный вызов
-        response = await async_client.post("/auth/forgot-password", json={"user_email": email})
+        response = await async_client.post("/api/v1/auth/forgot-password", json={"user_email": email})
         assert response.status_code == 400
         # должен быть вызван сервис по отвравке письма
         assert mock_email_service.call_count == 1
@@ -184,17 +184,17 @@ class TestAuth:
         resetting_link = await verify_service.create_resetPassword_link(user_id)        
         
         token = resetting_link.split("=")[1]
-        response = await async_client.post("/auth/reset-password", 
+        response = await async_client.post("/api/v1/auth/reset-password", 
                                           json={"token": token, "new_password": new_password})
         assert response.status_code == 200
         
         # пробуем еще раз отправить пароль с этим токеном
-        response = await async_client.post("/auth/reset-password", 
+        response = await async_client.post("/api/v1/auth/reset-password", 
                                           json={"token": token, "new_password": "fblnkgbegkgbgn"})
         assert response.status_code == 401
         
         # проверка нового пароля
-        response = await async_client.post("/auth/login", data={"username": username,
+        response = await async_client.post("/api/v1/auth/login", data={"username": username,
                                                                 "password": new_password})
         assert response.status_code == 200
         

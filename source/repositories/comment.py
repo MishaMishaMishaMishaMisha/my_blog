@@ -9,7 +9,7 @@ from source.models.comment import CommentModel
 from source.models.user import UserModel
 from source.models.comment_reaction import CommentReactionModel
 from source.models.attachment_media import AttachmentMediaModel
-from source.schemas.comment import (CommentAddDTO, 
+from source.api.v1.schemas.comment import (CommentAddDTO, 
                                     CommentPatchDTO, 
                                     CommentAddReactionDTO)
 from source.core.exceptions import (CommentNotFoundException, 

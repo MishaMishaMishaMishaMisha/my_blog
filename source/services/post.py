@@ -13,8 +13,8 @@ from source.models.tag import TagModel
 from source.core.logger import default_logger
 from source.core.types import TypeReactionEnum
 from source.core.types import PostsSortEnum, PeriodEnum
-from source.schemas.post import PostAddDTO, PostPatchDTO, PostAddReactionDTO
-from source.schemas.post import (PostPreviewDTO, 
+from source.api.v1.schemas.post import PostAddDTO, PostPatchDTO, PostAddReactionDTO
+from source.api.v1.schemas.post import (PostPreviewDTO, 
                                  PostWithTagsDTO, 
                                  PostListDTO, 
                                  PostFullDTO, 

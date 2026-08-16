@@ -36,7 +36,7 @@ class TestComment:
                         "body": get_random_string(100)}
             
             response = await async_client.post(
-                                f"/posts/{post.id}/comments", 
+                                f"/api/v1/posts/{post.id}/comments", 
                                 json=comment, 
                                 headers={"Authorization": f"Bearer {users[i]["access_token"]}"})
 
@@ -85,7 +85,7 @@ class TestComment:
                     "files_id": attachments_id_user1}
         
         response = await async_client.post(
-                            f"/posts/{post.id}/comments", 
+                            f"/api/v1/posts/{post.id}/comments", 
                             json=comment, 
                             headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
 
@@ -102,7 +102,7 @@ class TestComment:
         # пробуем прикрепить к комментарию 5 файлов
         comment["files_id"] = attachments_id_user2
         response = await async_client.post(
-                            f"/posts/{post.id}/comments", 
+                            f"/api/v1/posts/{post.id}/comments", 
                             json=comment, 
                             headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
 
@@ -129,7 +129,7 @@ class TestComment:
                         "body": get_random_string(100)}
             
             response = await async_client.post(
-                                f"/posts/{post.id}/comments", 
+                                f"/api/v1/posts/{post.id}/comments", 
                                 json=comment, 
                                 headers={"Authorization": f"Bearer {users[i]["access_token"]}"})
             
@@ -143,7 +143,7 @@ class TestComment:
                         "body": get_random_string(100)}
             
             response = await async_client.post(
-                                f"/posts/{post.id}/comments", 
+                                f"/api/v1/posts/{post.id}/comments", 
                                 json=comment, 
                                 headers={"Authorization": f"Bearer {users[i]["access_token"]}"})
 
@@ -169,7 +169,7 @@ class TestComment:
                     "parent_id": str(UUID(int=0)),
                     "body": get_random_string(100)}
         response = await async_client.post(
-                            f"/posts/{post.id}/comments", 
+                            f"/api/v1/posts/{post.id}/comments", 
                             json=comment, 
                             headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
         assert response.status_code == 404
@@ -194,17 +194,17 @@ class TestComment:
         
         
         # тест корневых комментариев
-        response = await async_client.get(f"/posts/{post.id}/comments")
+        response = await async_client.get(f"/api/v1/posts/{post.id}/comments")
         assert response.status_code == 200
         assert len(response.json()) == 3
         
         # тест ответов на 1й коммент
-        response = await async_client.get(f"/comments/{comments["roots"][0].id}/replies")
+        response = await async_client.get(f"/api/v1/comments/{comments["roots"][0].id}/replies")
         assert response.status_code == 200
         assert len(response.json()) == 2
         
         # тест ответов на первый ответ на 1й коммент
-        response = await async_client.get(f"/comments/{comments["level1"][0].id}/replies")
+        response = await async_client.get(f"/api/v1/comments/{comments["level1"][0].id}/replies")
         assert response.status_code == 200
         assert len(response.json()) == 1        
         
@@ -227,7 +227,7 @@ class TestComment:
                       "comment_id": str(comments[0].id),
                       "reaction_type": TypeReactionEnum.LIKE}
         response = await async_client.post(
-                            "/comments/react", 
+                            "/api/v1/comments/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {users[1]["access_token"]}"})
         
@@ -244,7 +244,7 @@ class TestComment:
         # добавление реакции на несуществующий комментарий
         react_data["comment_id"] = str(UUID(int=0))
         response = await async_client.post(
-                            "/comments/react", 
+                            "/api/v1/comments/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {users[1]["access_token"]}"})
         assert response.status_code == 404
@@ -254,7 +254,7 @@ class TestComment:
         react_data["comment_id"] = str(comments[0].id)
         react_data["reaction_type"] = TypeReactionEnum.DISLIKE
         response = await async_client.post(
-                            "/comments/react", 
+                            "/api/v1/comments/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {users[1]["access_token"]}"})
         
@@ -272,7 +272,7 @@ class TestComment:
         await db_session.refresh(comment)
         # пробуем поставить ту же реакцию еще раз (удалить)
         response = await async_client.post(
-                            "/comments/react", 
+                            "/api/v1/comments/react", 
                             json=react_data, 
                             headers={"Authorization": f"Bearer {users[1]["access_token"]}"})
         query = (select(CommentModel)
@@ -299,7 +299,7 @@ class TestComment:
                                           post=post, count=2)
         
         # удаляем комментарий
-        response = await async_client.delete(f"/comments/{comments[0].id}",
+        response = await async_client.delete(f"/api/v1/comments/{comments[0].id}",
                             headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
         assert response.status_code == 200
         # проверяем что его нету в базе
@@ -308,12 +308,12 @@ class TestComment:
         assert deleted_comment is None
         
         # delete comment with wrong id
-        response = await async_client.delete(f"/comments/{UUID(int=0)}",
+        response = await async_client.delete(f"/api/v1/comments/{UUID(int=0)}",
                             headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
         assert response.status_code == 404
         
         # delete other user' comment
-        response = await async_client.delete(f"/comments/{comments[1].id}",
+        response = await async_client.delete(f"/api/v1/comments/{comments[1].id}",
                             headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
         assert response.status_code == 404
 
@@ -354,7 +354,7 @@ class TestComment:
         await db_session.commit()
         
         # получаем реакции поста
-        response = await async_client.get(f"/comments/{comments[0].id}/reactions")
+        response = await async_client.get(f"/api/v1/comments/{comments[0].id}/reactions")
         assert response.status_code == 200
         
         response_data = response.json()
@@ -376,7 +376,7 @@ class TestComment:
                                           post=post, count=1)
         
         # получаем комментарий
-        response = await async_client.get(f"/comments/{comments[0].id}")
+        response = await async_client.get(f"/api/v1/comments/{comments[0].id}")
         assert response.status_code == 200
         
         comment_response = response.json()
@@ -387,7 +387,7 @@ class TestComment:
         assert len(comment_response["attachments"]) == 0
         
         # get post with wrong id
-        response = await async_client.get(f"/comments/{UUID(int=0)}")
+        response = await async_client.get(f"/api/v1/comments/{UUID(int=0)}")
         assert response.status_code == 404
             
     @pytest.mark.parametrize(
@@ -415,7 +415,7 @@ class TestComment:
         
         
         # update comment
-        response = await async_client.patch(f"/comments/{comments[0].id}", json=patch_comment_data,
+        response = await async_client.patch(f"/api/v1/comments/{comments[0].id}", json=patch_comment_data,
                         headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
         assert response.status_code == 200
         updated_post = response.json()
@@ -424,13 +424,13 @@ class TestComment:
 
         
         # update comment with wrong id
-        response = await async_client.patch(f"/comments/{UUID(int=0)}", json={},
+        response = await async_client.patch(f"/api/v1/comments/{UUID(int=0)}", json={},
                         headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
         assert response.status_code == 404
         
         # update other user' comment
         if patch_comment_data:
-            response = await async_client.patch(f"/comments/{comments[1].id}", json=patch_comment_data,
+            response = await async_client.patch(f"/api/v1/comments/{comments[1].id}", json=patch_comment_data,
                             headers={"Authorization": f"Bearer {users[0]["access_token"]}"})
             assert response.status_code == 404
                
@@ -462,7 +462,7 @@ class TestComment:
                                          filename="newtestfile.png")
         attachments_id.append(str(attachments_new[0].id))
         
-        response = await async_client.patch(f"/comments/{comments[0].id}", 
+        response = await async_client.patch(f"/api/v1/comments/{comments[0].id}", 
                         json={"files_id": attachments_id},
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         
@@ -472,7 +472,7 @@ class TestComment:
         
         # удалим старый файл
         attachments_id.remove(attachments_id[0])
-        response = await async_client.patch(f"/comments/{comments[0].id}", 
+        response = await async_client.patch(f"/api/v1/comments/{comments[0].id}", 
                         json={"files_id": attachments_id},
                         headers={"Authorization": f"Bearer {authenticated_user["access_token"]}"})
         

@@ -3,8 +3,8 @@ from uuid import UUID
 from datetime import datetime
 
 from source.core.types import TypeReactionEnum
-from source.schemas.attachment import AttachmentDTO
-from source.schemas.tag import TagDTO, TagCreateDTO
+from source.api.v1.schemas.attachment import AttachmentDTO
+from source.api.v1.schemas.tag import TagDTO, TagCreateDTO
 
 
 class PostAddDTO(BaseModel):

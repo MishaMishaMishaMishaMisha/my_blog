@@ -8,7 +8,7 @@ from sqlalchemy.orm.interfaces import ORMOption
 from source.models.user import UserModel
 from source.models.post import PostModel
 from source.models.comment import CommentModel
-from source.schemas.user import UserAddDTO, UserPatchDTO
+from source.api.v1.schemas.user import UserAddDTO, UserPatchDTO
 from source.core.exceptions import (UserException,
                                     UsernameAlreadyExsistsException, 
                                     EmailAlreadyExsistsException, 

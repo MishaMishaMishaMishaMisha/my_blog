@@ -5,7 +5,7 @@ from typing import Sequence
 
 from source.models.user import UserModel
 
-from source.schemas.comment import (CommentAddDTO, 
+from source.api.v1.schemas.comment import (CommentAddDTO, 
                                     CommentAddReactionDTO, 
                                     CommentPatchDTO,
                                     CommentWithReactionsDTO, 
@@ -14,9 +14,9 @@ from source.schemas.comment import (CommentAddDTO,
 from source.services.comment import CommentService
 from source.services.comment import CommentLoadRelations
 
-from source.dependencies.comment import get_comment_service
-from source.dependencies.auth import get_user_from_token, get_user_or_none_from_token
-from source.dependencies.rate_limit import (create_comment_limiter,
+from source.api.v1.dependencies.comment import get_comment_service
+from source.api.v1.dependencies.auth import get_user_from_token, get_user_or_none_from_token
+from source.api.v1.dependencies.rate_limit import (create_comment_limiter,
                                             get_root_comments_limiter,
                                             get_root_replies_limiter,
                                             react_to_comment_limiter,
