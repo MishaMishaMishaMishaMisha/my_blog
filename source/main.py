@@ -14,7 +14,7 @@ from source.core.types import STORAGE_PATH
 from source.database.init_admin import create_first_admin
 
 
-# Убеждаемся, что папка физически существует при старте приложения
+# Убеждаемся, что папка /uploads существует при старте приложения
 STORAGE_PATH.mkdir(parents=True, exist_ok=True)
 
 def create_app(with_lifespan: bool = True) -> FastAPI:

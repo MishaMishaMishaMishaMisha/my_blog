@@ -1,7 +1,7 @@
 services:
 
   postgres_test:
-    image: postgres:17
+    image: postgres:17-alpine
     container_name: testpg-container
 
     environment:
@@ -14,7 +14,7 @@ services:
 
 
   redis_test:
-    image: redis
+    image: redis:7-alpine
 
     ports:
       - "6380:6379" # другой порт для тестового redis
