@@ -1,10 +1,10 @@
+name: my-blog
 
 # базовый шаблон для образа
 x-base-app: &base_app
   build: .
   env_file: .env
   volumes:
-    #- .:/app
     - ./source:/app/source # только код проекта
     - uploads_data:/app/uploads # отдельно папка для локального хранилища
   depends_on:
@@ -16,7 +16,7 @@ services:
   # приложение
   my_app:
     <<: *base_app
-    container_name: fastapi-app
+    container_name: my-app-container
     ports:
       - "8000:8000"
     command: uv run -m source.main --uvicorn_reload
@@ -24,6 +24,7 @@ services:
   # celery для выполнения задач
   celery_worker:
     <<: *base_app
+    container_name: celery-worker-container
     command: uv run celery -A source.celery_app.celery_app worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -32,6 +33,7 @@ services:
   # celery для периодичных задач
   celery_beat:
     <<: *base_app
+    container_name: celery-beat-container
     command: uv run celery -A source.celery_app.celery_app beat --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -39,7 +41,7 @@ services:
 
   postgres:
     image: postgres:17
-    container_name: pg-container
+    container_name: postgres-container
     env_file: .env
     environment:
       POSTGRES_DB: ${DB_NAME}
@@ -52,6 +54,7 @@ services:
 
   redis:
     image: redis
+    container_name: redis-container
     env_file: .env
     ports:
       - "${REDIS_PORT}:6379"
