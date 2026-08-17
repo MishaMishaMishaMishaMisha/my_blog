@@ -48,6 +48,7 @@ import { useRoute } from "vue-router";
 import PostCard from "@/components/PostCard.vue";
 import { searchPostsByTitle, searchPostsByTag } from "@/api/posts";
 import type { PostPreview } from "@/api/posts";
+import { watchEffect } from 'vue'
 
 const route = useRoute();
 const LIMIT = 10;
@@ -61,6 +62,23 @@ const tagParam = computed(() => route.query.tag as string | undefined);
 const titleParam = computed(() => route.query.title as string | undefined);
 
 const hasMore = computed(() => posts.value.length < totalCount.value);
+
+
+// watchEffect автоматически отслеживает изменения route.query.title 
+// и обновляет заголовок сразу же, как только меняется URL
+watchEffect(() => {
+  const queryTile = route.query.title as string
+  const queryTag = route.query.tag as string
+
+  if (queryTitle) {
+    document.title = `Поиск: ${queryTitle}`
+  } else if (queryTag) {
+    document.title = `Поиск по тегу: ${queryTag}`
+  } else {
+    document.title = 'Поиск по сайту'
+  }
+})
+
 
 async function fetchResults() {
   loading.value = true;

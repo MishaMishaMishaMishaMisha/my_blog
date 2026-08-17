@@ -1,6 +1,7 @@
 <template>
   <div class="post-page-container">
-    <div v-if="post" class="post-card">
+    <div v-if="isLoading">Загрузка...</div>
+    <div v-else-if="post" class="post-card">
       
       <!-- Заголовок и Авторизованные Действия -->
       <div class="post-header">
@@ -156,6 +157,8 @@ const post = ref<any>();
 const LIMIT = 10;
 const hasMoreComments = ref(true);
 const loadingMoreComments = ref(false);
+
+const isLoading = ref(true)
 
 
 const reacting = ref(false);
@@ -338,19 +341,29 @@ async function loadPost() {
 
     try {
 
+        document.title = 'Загрузка...'
+
         post.value =
             await getPost(
                 route.params.id as string,
             );
 
+        if (post.value?.title) {
+          document.title = `${post.value.title}`
+        }
+
     }
 
     catch {
+
+        document.title = 'Ошибка загрузки поста'
 
         alert("Пост не найден.");
 
         router.push("/");
 
+    } finally {
+      isLoading.value = false
     }
 
 }

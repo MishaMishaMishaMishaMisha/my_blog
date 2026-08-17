@@ -207,15 +207,6 @@ async def forgot_password(email_data: UserEmailDTO,
     
     else:
         # add task to celery
-        
-        default_logger.info("!!before ceclery!!")
-        default_logger.info(f"data type= {type(msg_data)}")
-        default_logger.info(f"data= {msg_data}")
-        # default_logger.info("html pathp=", msg_data.get("template_path"))
-        # default_logger.info("context=", msg_data.get("context"))
-        # default_logger.info("text vers=", msg_data.get("text_version"))
-        default_logger.info("!!before ceclery!!")
-        
         send_html_message_to_email.delay(user_email=user.email, 
                                          msg_subject=msg_data.get("subject"),
                                          html_path=msg_data.get("template_path"),
