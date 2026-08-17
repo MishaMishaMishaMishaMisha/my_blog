@@ -29,7 +29,7 @@ async def update_views_count_async_task() -> None:
     try:
         await redis.renameKey("post_views", processing_key)
     except Exception:
-        default_logger.debug("Celery. Key post_views is not set")
+        default_logger.info("Celery. Key post_views is not set")
         return
     
     # создаем новый движок и сессию для подключения к бд

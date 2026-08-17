@@ -23,7 +23,8 @@ COPY pyproject.toml uv.lock ./
 # код проекта скопируется в следующей команде
 RUN uv sync --frozen --no-install-project
 
-# Копируем исходный код бекенда и конфиг миграций
+# Копируем исходный код бекенда, папку с логами и конфиг миграций
 #COPY . .
 COPY alembic.ini ./
 COPY source/ ./source/
+COPY logs/ ./logs/

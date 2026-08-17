@@ -5,8 +5,9 @@ x-base-app: &base_app
   build: .
   env_file: .env
   volumes:
-    - ./source:/app/source # только код проекта
-    - uploads_data:/app/uploads # отдельно папка для локального хранилища
+    - ./source:/app/source # только код backend
+    - uploads_data:/app/uploads # сохраняем папку с локальным хранилищем
+    - logs_data:/app/logs # папка с логами
   depends_on:
     - postgres
     - redis
@@ -19,25 +20,19 @@ services:
     container_name: my-app-container
     ports:
       - "8000:8000"
-    command: uv run -m source.main --uvicorn_reload
+    command: env PROJECT_LOG_LEVEL=INFO uv run -m source.main --uvicorn_reload --app_log_level INFO
 
   # celery для выполнения задач
   celery_worker:
     <<: *base_app
     container_name: celery-worker-container
-    command: uv run celery -A source.celery_app.celery_app worker --loglevel=info
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    command: env PROJECT_LOG_LEVEL=INFO uv run celery -A source.celery_app.celery_app worker --loglevel=info
 
   # celery для периодичных задач
   celery_beat:
     <<: *base_app
     container_name: celery-beat-container
-    command: uv run celery -A source.celery_app.celery_app beat --loglevel=info
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    command: env PROJECT_LOG_LEVEL=INFO uv run celery -A source.celery_app.celery_app beat --loglevel=info
 
   postgres:
     image: postgres:17-alpine
@@ -59,6 +54,20 @@ services:
     ports:
       - "${REDIS_PORT}:6379"
 
+  # fronend
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: frontend-dev-contrainer
+    env_file: ./frontend/.env
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
 volumes:
   postgres_data:
   uploads_data:
+  logs_data:

@@ -40,9 +40,9 @@ def create_app(with_lifespan: bool = True) -> FastAPI:
     app.include_router(api_v1_router)
     
     # скачивание файлов
-    # пример: http://127.0.0.1:8000/app/uploads/filename.png
+    # пример: http://127.0.0.1:8000/api/v1/app/uploads/filename.png
     app.mount(
-        "/app/uploads",
+        "/api/v1/app/uploads",
         StaticFiles(directory=str(STORAGE_PATH)),
         name="uploads"
     )
@@ -72,6 +72,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # уровень логирования приложения
+    # пример --app_log_level INFO
     parser.add_argument(
         "--app_log_level",
         default="DEBUG",

@@ -37,23 +37,6 @@ class SimpleLoggerFactory:
         self.formatter = formatter
         self.filter = log_filter
 
-        # # Чтобы не создавать дубликаты handler'ов
-        # if not self.logger.handlers:
-        #     self.logger.setLevel(level)
-
-        #     if handler is None:
-        #         handler = logging.StreamHandler()
-
-        #     if formatter is None:
-        #         formatter = logging.Formatter(fmt or self.DEFAULT_FMT, datefmt=self.DEFAULT_DATEFMT)
-
-        #     handler.setFormatter(formatter)
-
-        #     if log_filter is not None:
-        #         handler.addFilter(log_filter)
-
-        #     self.logger.addHandler(handler)
-
     def add_handler(self, handler: logging.Handler) -> None:
         handler.setFormatter(self.formatter)
         
@@ -87,9 +70,9 @@ if os.getenv("MODE") == "TEST":
     logs_path = BASE_DIR / "tests/test_logs.log"
 
 else:
-    # файл с логами будет лежать в корневой папке проекта
+    # файл с логами будет лежать в отдельной папке
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
-    logs_path = BASE_DIR / "logs.log"
+    logs_path = BASE_DIR / "logs/logs.log"
 
 filehandler = logging.FileHandler(logs_path)
 

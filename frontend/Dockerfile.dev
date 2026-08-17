@@ -1,0 +1,14 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 5173
+
+# Запуск dev-сервера (Vite по умолчанию использует порт 5173)
+CMD ["npm", "run", "dev", "--", "--host"]
