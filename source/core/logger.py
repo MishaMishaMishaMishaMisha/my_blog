@@ -2,6 +2,8 @@ import logging
 from pathlib import Path
 import os
 
+from source.core.config import settings
+
 
 class SimpleLoggerFactory:
     DEFAULT_FMT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -76,8 +78,18 @@ else:
 
 filehandler = logging.FileHandler(logs_path)
 
-loggger_factory = SimpleLoggerFactory(name="default-logger")
+log_level = settings.LOG_LEVEL
+if log_level not in logging.getLevelNamesMapping():
+    log_leve = "DEBUG"
+    
+print("app executed with log-level=", log_level)
+
+loggger_factory = SimpleLoggerFactory(name="default-logger", 
+                                      level=logging._nameToLevel[log_level])
 loggger_factory.add_handler(filehandler)
 
 # логгер по умолчанию уровень DEBUG, вывод в консоль и в файл
 default_logger = loggger_factory.get_logger()
+
+
+

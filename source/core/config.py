@@ -70,14 +70,15 @@ class RedisSettings(BaseSettings):
 class Settings(BaseSettings):
     """Главный класс, который собирает всё вместе"""
     
+    # отдельно считываем переменные
     MODE: str # dev или test
+    LOG_LEVEL: str # info/debug/error...
     
     db: DbSettings = DbSettings(_env_file=ENV_FILE_PATH)
     jwt: JwtSettings = JwtSettings(_env_file=ENV_FILE_PATH)
     smtp: SMTPSettings = SMTPSettings(_env_file=ENV_FILE_PATH)
     redis: RedisSettings = RedisSettings(_env_file=ENV_FILE_PATH)
     
-    # считываем MODE отдельно так как у него нету префикса
     model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, extra="ignore")
     
 
@@ -86,4 +87,5 @@ settings = Settings()
 # пример обращения к настройкам
 # settings.db.url_asyncpg
 # settings.jwt.SECRET_KEY
+# settings.MODE
 

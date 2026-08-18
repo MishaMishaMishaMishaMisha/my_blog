@@ -1,5 +1,4 @@
 import os
-import logging
 
 from celery import Celery
 
@@ -8,14 +7,6 @@ from source.core.logger import default_logger
 
 
 print("celery_app file>")
-
-log_level = os.getenv("PROJECT_LOG_LEVEL", "NONE").upper()
-if log_level != "NONE":
-    
-    if log_level not in logging.getLevelNamesMapping():
-        log_level = "DEBUG"
-    print("app log level=", log_level)
-    default_logger.setLevel(logging._nameToLevel[log_level])
 
 
 app = Celery("source.celery_app.celery_app",
