@@ -39,4 +39,5 @@ jobs:
 
       # 5. остановка оставшихся контейнеров с postgres/redis !
       - name: Stop containers
-        run: docker compose -f docker-compose-test.yaml down
+        if: always()
+        run: docker compose -f docker-compose-test.yaml -v down

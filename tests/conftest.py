@@ -10,7 +10,7 @@ from source.database.db_connect import async_engine
 # проверка на MODE=TEST и успешное подключение к бд
 
 @pytest.fixture(scope="session", autouse=True)
-def check_database():
+def check_mode():
     if settings.MODE != "TEST":
         pytest.exit("MODE is not TEST")
 
