@@ -26,7 +26,7 @@ jobs:
       # 2. подготовка .test.env файла.
       # используем секрет из github/actions
       - name: Prepare .env file
-        run: echo "${{ secrets.TEST_ENV_FILE }}" > .env
+        run: echo "${{ secrets.TEST_ENV_FILE }}" > .test.env
 
       # 3. сборка приложения
       # докер уже установлен в github-runner-е
@@ -34,7 +34,7 @@ jobs:
         run: docker compose -f docker-compose-test.yaml build my_app_test
 
       # 4. запуск тестовой базы
-      - name: Start test data branches
+      - name: Start test data bases
         run: docker compose -f docker-compose-test.yaml up -d
 
       # 5. запуск тестов. после завершения контейнер сам будет удален
