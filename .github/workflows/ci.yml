@@ -25,7 +25,7 @@ jobs:
 
       # 2. подготовка .test.env файла.
       # используем секрет из github/actions
-      - name: Prepare .env file
+      - name: Prepare .test.env file
         run: echo "${{ secrets.TEST_ENV_FILE }}" > .test.env
 
       # 3. сборка приложения
@@ -37,6 +37,6 @@ jobs:
       - name: Run tests
         run: docker compose --env-file .test.env -f docker-compose-test.yaml run --rm my_app_test uv run pytest
 
-      # 5. остановка оставшихся контейнеров с postgres/redis 
+      # 5. остановка оставшихся контейнеров с postgres/redis !
       - name: Stop containers
         run: docker compose -f docker-compose-test.yaml down
