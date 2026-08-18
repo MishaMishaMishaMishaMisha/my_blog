@@ -13,6 +13,8 @@ from source.services.email import EmailService
 from source.api.v1.dependencies.rate_limit import disable_all_rate_limiters
 
 
+
+
 # Автоматический мок для отправки писем во всех тестах
 @pytest.fixture(autouse=True)
 def mock_email_service():
