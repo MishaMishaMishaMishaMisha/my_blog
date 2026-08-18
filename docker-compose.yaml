@@ -20,19 +20,24 @@ services:
     container_name: my-app-container
     ports:
       - "8000:8000"
-    command: env PROJECT_LOG_LEVEL=INFO uv run -m source.main --uvicorn_reload --app_log_level INFO
+    # запуск с перезагрузкой и отслеживанием за изменениями файлов
+    command: uv run uvicorn source.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/source
+    # новый вариант
+    #command: uv run uvicorn source.main:app --host 0.0.0.0 --port 8000
+    # старый вариант (в main запускался сервер)
+    #command: uv run -m source.main --uvicorn_reload
 
   # celery для выполнения задач
   celery_worker:
     <<: *base_app
     container_name: celery-worker-container
-    command: env PROJECT_LOG_LEVEL=INFO uv run celery -A source.celery_app.celery_app worker --loglevel=info
+    command: uv run celery -A source.celery_app.celery_app worker --loglevel=info
 
   # celery для периодичных задач
   celery_beat:
     <<: *base_app
     container_name: celery-beat-container
-    command: env PROJECT_LOG_LEVEL=INFO uv run celery -A source.celery_app.celery_app beat --loglevel=info
+    command: uv run celery -A source.celery_app.celery_app beat --loglevel=info
 
   postgres:
     image: postgres:17-alpine

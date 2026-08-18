@@ -1,20 +1,36 @@
+name: my-test-blog
+
 services:
+
+  # приложение
+  my_app_test:
+    build: .
+    env_file: .test.env
+    container_name: my-test-app-container
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./source:/app/source # код backend
+      - ./tests:/app/tests # папка с тестами
+    depends_on:
+      - postgres_test
+      - redis_test
+    command: uv run pytest tests/units
 
   postgres_test:
     image: postgres:17-alpine
     container_name: testpg-container
-
+    env_file: .test.env
     environment:
       POSTGRES_DB: mytestdockerpostgredb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: admin
-
     ports:
-      - "5433:5432" # другой порт для тестируемой базы
+      - "${DB_PORT}:5432"
 
 
   redis_test:
     image: redis:7-alpine
-
+    env_file: .test.env
     ports:
-      - "6380:6379" # другой порт для тестового redis
+      - "${REDIS_PORT}:6379"

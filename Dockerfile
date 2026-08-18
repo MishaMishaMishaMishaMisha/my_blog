@@ -28,3 +28,7 @@ RUN uv sync --frozen --no-install-project
 COPY alembic.ini ./
 COPY source/ ./source/
 COPY logs/ ./logs/
+
+# команда при запуске по умолчанию
+# в docker-compose можно переопределить
+CMD ["uv", "run", "uvicorn", "source.main:app", "--host", "0.0.0.0", "--port", "8000"]
