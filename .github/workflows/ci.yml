@@ -25,7 +25,7 @@ jobs:
 
       # 2. подготовка .test.env файла.
       # используем секрет из github/actions
-      - name: Prepare .env file
+      - name: Prepare .test.env file
         run: echo "${{ secrets.TEST_ENV_FILE }}" > .test.env
 
       # 3. сборка приложения
