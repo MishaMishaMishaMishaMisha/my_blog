@@ -22,5 +22,7 @@ tests/media/*
 .pytest_cache
 
 .vscode
+
+/logs*
 logs.log
 tests/test_logs.log

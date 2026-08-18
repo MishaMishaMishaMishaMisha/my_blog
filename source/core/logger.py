@@ -75,6 +75,9 @@ else:
     # файл с логами будет лежать в отдельной папке
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     logs_path = BASE_DIR / "logs/logs.log"
+    
+    # Убеждаемся, что папка /logs существует при старте приложения
+    (BASE_DIR / "logs").mkdir(parents=True, exist_ok=True)
 
 filehandler = logging.FileHandler(logs_path)
 
