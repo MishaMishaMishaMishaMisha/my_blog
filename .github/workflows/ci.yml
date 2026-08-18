@@ -1,0 +1,46 @@
+# имя пайплайна
+name: CI
+
+# указываем когда будет запущен ci:
+# после любого pull request
+# после push в ветку main
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# описываем этапы (jobs)
+# указываем у каждого имя, где будет запущен, какие шаги будут выполнены
+# каждый шаг содержит имя (name) и команды (run)
+jobs:
+  build-and-test: # имя этапа
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. скачать репозиторий проекта на ubuntu
+      # для этого есть встроенная команда через uses
+      - name: Get Repository
+        uses: actions/checkout@v4
+
+      # 2. подготовка .test.env файла.
+      # используем секрет из github/actions
+      - name: Prepare .env file
+        run: echo "${{ secrets.TEST_ENV_FILE }}" > .env
+
+      # 3. сборка приложения
+      # докер уже установлен в github-runner-е
+      - name: Build app
+        run: docker compose -f docker-compose-test.yaml build my_app_test
+
+      # 4. запуск тестовой базы
+      - name: Start test data branches
+        run: docker compose -f docker-compose-test.yaml up -d
+
+      # 5. запуск тестов. после завершения контейнер сам будет удален
+      - name: Run tests
+        run: docker compose -f docker-compose-test.yaml run --rm my_app_test uv run pytest
+
+      # 6. остановка контейнеров
+      - name: Stop containers
+        run: docker compose -f docker-compose-test.yaml down
