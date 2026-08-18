@@ -37,6 +37,6 @@ jobs:
       - name: Run tests
         run: docker compose --env-file .test.env -f docker-compose-test.yaml run --rm my_app_test uv run pytest
 
-      # 5. остановка оставшихся контейнеров с postgres/redis 
+      # 5. остановка оставшихся контейнеров с postgres/redis и тд
       - name: Stop containers
         run: docker compose -f docker-compose-test.yaml down
