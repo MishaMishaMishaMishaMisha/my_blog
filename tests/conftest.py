@@ -17,7 +17,7 @@ def pytest_sessionstart(session):
     try:
         asyncio.run(check_database())
     except Exception as e:
-        pytest.exit(f"PostgreSQL is unavailable: Error: {e}")
+        pytest.exit(f"PostgreSQL is unavailable: Error: {e}. db_url={settings.db.url_asyncpg}")
         
 async def check_database():
     async with async_engine.connect() as conn:
