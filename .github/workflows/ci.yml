@@ -33,14 +33,10 @@ jobs:
       - name: Build app
         run: docker compose -f docker-compose-test.yaml build my_app_test
 
-      # 4. запуск тестовой базы
-      - name: Start test data bases
-        run: docker compose -f docker-compose-test.yaml up -d
-
-      # 5. запуск тестов. после завершения контейнер сам будет удален
+      # 4. запуск тестов. после завершения контейнер сам будет удален
       - name: Run tests
-        run: docker compose -f docker-compose-test.yaml run --rm my_app_test uv run pytest
+        run: docker compose --env-file .test.env -f docker-compose-test.yaml run --rm my_app_test uv run pytest
 
-      # 6. остановка контейнеров
+      # 5. остановка оставшихся контейнеров с postgres/redis 
       - name: Stop containers
         run: docker compose -f docker-compose-test.yaml down

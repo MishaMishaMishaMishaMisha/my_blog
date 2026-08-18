@@ -12,19 +12,20 @@ services:
     volumes:
       - ./source:/app/source # код backend
       - ./tests:/app/tests # папка с тестами
+      - ./pytest.ini:/app/pytest.ini # конфигурационный файл для тестов
     depends_on:
       - postgres_test
       - redis_test
-    command: uv run pytest tests/units
+    command: uv run pytest
 
   postgres_test:
     image: postgres:17-alpine
     container_name: testpg-container
     env_file: .test.env
     environment:
-      POSTGRES_DB: mytestdockerpostgredb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
     ports:
       - "${DB_PORT}:5432"
 
