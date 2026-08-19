@@ -55,9 +55,12 @@ import { ref, onMounted, watch } from "vue";
 import Navbar from "@/components/Navbar.vue";
 import PostCard from "@/components/PostCard.vue";
 
+import type { PostPreview } from '@/api/posts'
+
 import { getPosts } from "@/api/posts";
 
-const posts = ref([]);
+//const posts = ref([]);
+const posts = ref<PostPreview[]>([]);
 
 const totalCount = ref(0);
 

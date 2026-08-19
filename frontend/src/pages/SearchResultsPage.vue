@@ -67,7 +67,7 @@ const hasMore = computed(() => posts.value.length < totalCount.value);
 // watchEffect автоматически отслеживает изменения route.query.title 
 // и обновляет заголовок сразу же, как только меняется URL
 watchEffect(() => {
-  const queryTile = route.query.title as string
+  const queryTitle = route.query.title as string
   const queryTag = route.query.tag as string
 
   if (queryTitle) {

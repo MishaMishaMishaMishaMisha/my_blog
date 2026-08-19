@@ -17,6 +17,7 @@ export interface Attachment {
   id: string;
   url: string;
   file_type: string;
+  orig_name: string;
 }
 
 export interface Comment {

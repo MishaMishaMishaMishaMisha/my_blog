@@ -161,7 +161,7 @@ async function send() {
       emit("created", fullComment);
     }
   } catch (e: any) {
-    if (error.response?.status !== 403) {
+    if (e.response?.status !== 403) {
       alert(e.response?.data?.detail ?? "Ошибка при сохранении.");
     }
   } finally {
