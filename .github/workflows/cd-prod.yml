@@ -1,0 +1,29 @@
+name: Deploy to Prod Stage
+
+on:
+  workflow_dispatch: # кнопка
+
+
+jobs:
+  deploy-to-prod: 
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Repository
+        uses: actions/checkout@v4
+
+      - name: Prepare .env file
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
+        # тут нужно будет указать адрес веб сервера
+        # и подключится к нему
+
+        # удаляем предыдущий по имени
+      - name: Remove previous deploy
+        run: docker compose -p crm-prod down  
+
+        # запускаем с указанием yaml файла, имени контейнера
+      - name: Deploy Project
+        run: docker compose -f docker-compose-prod.yaml -p crm-prod up --build -d
+

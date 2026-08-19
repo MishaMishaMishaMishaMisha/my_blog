@@ -1,0 +1,89 @@
+name: my-blog-prod
+
+# базовый шаблон для образа
+x-base-app: &base_app
+  build: .
+  env_file: .env
+  volumes:
+    # убрал том с кодом бекенда /source. или он нужен?
+    - uploads_data:/app/uploads # сохраняем папку с локальным хранилищем
+    - logs_data:/app/logs # папка с логами
+  depends_on:
+    - postgres
+    - redis
+
+services:
+
+  # Nginx (Единая точка входа)
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-container
+    env_file: .env
+    ports:
+      - "${NGINX_PUBLIC_HTTP_PORT}:80"
+      - "${NGINX_PUBLIC_HTPPS_PORT}:443" # на будущее под SSL (HTTPS)
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro # заменил на prod файл
+      - uploads_data:/app/uploads:ro  # nginx будет скачивать файлы.
+    depends_on:
+      - my_app
+      - frontend
+    restart: always
+
+  # приложение (backend)
+  my_app:
+    <<: *base_app
+    container_name: my-app-container
+    # сначала применяем миграции. если будет ошибка то серер не запустится
+    command: >
+      sh -c "uv run alembic upgrade head && 
+             uv run uvicorn source.main:app --host 0.0.0.0 --port 8000"
+    restart: always
+
+  # celery для выполнения задач
+  celery_worker:
+    <<: *base_app
+    container_name: celery-worker-container
+    command: uv run celery -A source.celery_app.celery_app worker --loglevel=info
+    restart: always
+
+  # celery для периодичных задач
+  celery_beat:
+    <<: *base_app
+    container_name: celery-beat-container
+    command: uv run celery -A source.celery_app.celery_app beat --loglevel=info
+    restart: always
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres-container
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-container
+    env_file: .env
+    ports:
+      - "${REDIS_PORT}:6379"
+    restart: always
+
+  # fronend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+
+volumes:
+  postgres_data:
+  uploads_data:
+  logs_data:

@@ -1,0 +1,26 @@
+name: Deploy to Test Stage
+
+on:
+  workflow_dispatch: # кнопка
+
+
+jobs:
+  deploy-to-test: 
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get Repository
+        uses: actions/checkout@v4
+
+      - name: Prepare .env file
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
+        # удаляем предыдущий по имени
+      - name: Remove previous deploy
+        run: docker compose -p crm-test down  
+
+        # запускаем с указанием других портов, yaml файла, имени контейнера
+      - name: Deploy Project
+        run: NGINX_PUBLIC_HTTP_PORT=18001 NGINX_PUBLIC_HTPPS_PORT=18002 docker compose -f docker-compose-prod.yaml -p crm-test up --build -d
+
