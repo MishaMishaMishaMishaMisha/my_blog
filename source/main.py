@@ -35,20 +35,14 @@ def create_app(with_lifespan: bool = True) -> FastAPI:
         app = FastAPI()
         
     app.include_router(api_v1_router)
-    
-    # скачивание файлов
-    # пример: http://127.0.0.1:8000/api/v1/app/uploads/filename.png
-    app.mount(
-        "/api/v1/app/uploads",
-        StaticFiles(directory=str(STORAGE_PATH)),
-        name="uploads"
-    )
 
     # CORS - позволить фронтенду делать запросы к бекенду
+    # изменено на адрес nginx
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
-            "http://localhost:5173",
+            "http://localhost",
+            "http://localhost:80"
         ],
         allow_credentials=True,
         allow_methods=["*"],

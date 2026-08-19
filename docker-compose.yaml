@@ -14,12 +14,25 @@ x-base-app: &base_app
 
 services:
 
-  # приложение
+  # Nginx (Единая точка входа)
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-dev-container
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+      - uploads_data:/app/uploads:ro  # nginx будет скачивать файлы. ro значит read only
+    depends_on:
+      - my_app
+      - frontend-dev
+
+  # приложение (backend)
   my_app:
     <<: *base_app
     container_name: my-app-container
-    ports:
-      - "8000:8000"
+    #ports:
+    #  - "8000:8000"
     # запуск с перезагрузкой и отслеживанием за изменениями файлов
     command: uv run uvicorn source.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/source
     # новый вариант
@@ -66,8 +79,8 @@ services:
       dockerfile: Dockerfile.dev
     container_name: frontend-dev-contrainer
     env_file: ./frontend/.env
-    ports:
-      - "5173:5173"
+    #ports:
+    #  - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
