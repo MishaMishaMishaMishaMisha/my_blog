@@ -137,3 +137,36 @@ Create .test.env using .env as a template and configure the test environment.
 Then run:
 
 docker compose --env-file .test.env -f docker-compose-test.yaml run --rm my_app_test uv run pytest
+
+# Screenshots
+### 1
+<img width="1919" height="815" alt="1" src="https://github.com/user-attachments/assets/033ffc12-bbc9-4b7a-bb1c-3d2d584fab20" />
+
+### 2
+<img width="1919" height="869" alt="2" src="https://github.com/user-attachments/assets/138830fc-6086-4f09-8b0c-24807666e59c" />
+
+### 3
+<img width="1915" height="537" alt="3" src="https://github.com/user-attachments/assets/e6cdb070-d8ad-43af-b7be-a216f4991f31" />
+
+### 4
+<img width="1917" height="871" alt="4" src="https://github.com/user-attachments/assets/1cebdf37-d65a-4c51-979c-e4dcdfc74b9a" />
+
+### 5
+<img width="887" height="864" alt="5" src="https://github.com/user-attachments/assets/613a27f1-5f29-4c12-acc7-cdb8ae92d5eb" />
+
+### 6
+<img width="995" height="874" alt="6" src="https://github.com/user-attachments/assets/8af05425-d8ba-4516-8633-54106887f49a" />
+
+### 7
+<img width="893" height="837" alt="7" src="https://github.com/user-attachments/assets/d1c15db7-3da2-49f3-92da-03b6d637c97b" />
+
+### 8
+<img width="1914" height="337" alt="8" src="https://github.com/user-attachments/assets/0f549072-4fbb-429f-8257-83bd67626d26" />
+
+### 9
+<img width="1919" height="714" alt="9" src="https://github.com/user-attachments/assets/4164dce3-f05c-407c-a64e-c0aeaa1d49a1" />
+
+### 10
+<img width="1919" height="468" alt="10" src="https://github.com/user-attachments/assets/8fb6d96c-06bf-4c11-a855-376fc258e532" />
+
+
