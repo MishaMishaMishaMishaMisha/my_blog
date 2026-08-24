@@ -5,12 +5,13 @@ x-base-app: &base_app
   build: .
   env_file: .env
   volumes:
-    # убрал том с кодом бекенда /source. или он нужен?
     - uploads_data:/app/uploads # сохраняем папку с локальным хранилищем
     - logs_data:/app/logs # папка с логами
   depends_on:
-    - postgres
-    - redis
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
 
 services:
 
@@ -23,7 +24,7 @@ services:
       - "${NGINX_PUBLIC_HTTP_PORT}:80"
       - "${NGINX_PUBLIC_HTPPS_PORT}:443" # на будущее под SSL (HTTPS)
     volumes:
-      - ./nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro # заменил на prod файл
+      - ./nginx/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
       - uploads_data:/app/uploads:ro  # nginx будет скачивать файлы.
     depends_on:
       - my_app
@@ -66,6 +67,11 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: always
 
   redis:

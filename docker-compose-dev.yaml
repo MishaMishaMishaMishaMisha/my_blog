@@ -9,8 +9,10 @@ x-base-app: &base_app
     - uploads_data:/app/uploads # сохраняем папку с локальным хранилищем
     - logs_data:/app/logs # папка с логами
   depends_on:
-    - postgres
-    - redis
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
 
 services:
 
@@ -32,14 +34,11 @@ services:
   my_app:
     <<: *base_app
     container_name: my-app-container
-    #ports:
-    #  - "8000:8000"
-    # запуск с перезагрузкой и отслеживанием за изменениями файлов
-    command: uv run uvicorn source.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/source
-    # новый вариант
-    #command: uv run uvicorn source.main:app --host 0.0.0.0 --port 8000
-    # старый вариант (в main запускался сервер)
-    #command: uv run -m source.main --uvicorn_reload
+    # сначала применяем миграции. если будет ошибка то серер не запустится
+    # запуск сервера с перезагрузкой и отслеживанием за изменениями файлов
+    command: >
+      sh -c "uv run alembic upgrade head &&
+             uv run uvicorn source.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/source"
 
   # celery для выполнения задач
   celery_worker:
@@ -65,6 +64,11 @@ services:
       - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -80,8 +84,6 @@ services:
       dockerfile: Dockerfile.dev
     container_name: frontend-dev-contrainer
     env_file: ./frontend/.env
-    #ports:
-    #  - "5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
