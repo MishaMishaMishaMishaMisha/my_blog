@@ -3,7 +3,8 @@ name: CI
 
 # указываем когда будет запущен ci:
 # после любого pull request
-# после push в ветку main (кроме изменений в текущей папке и frontend/)
+# после push в ветку main 
+# (кроме изменений в текущей папке и frontend/)
 on:
   pull_request:
   push:
