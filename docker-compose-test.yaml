@@ -14,9 +14,9 @@ services:
       - ./tests:/app/tests # папка с тестами
       - ./pytest.ini:/app/pytest.ini # конфигурационный файл для тестов
     depends_on:
-      postgres:
+      postgres_test:
         condition: service_healthy
-      redis:
+      redis_test:
         condition: service_started
     command: uv run pytest
 
