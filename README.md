@@ -33,6 +33,11 @@ The frontend was built with Vue.js.
 - Reactions to comments
 - Media attachments in comments
 
+## Admin Panel
+- Admin panel built with SQLAdmin
+- Management of users, posts, comments
+- Separate admin authentication and access control
+
 ## Background Processing
 Celery is used for tasks that should not block HTTP requests:
 - Sending emails
