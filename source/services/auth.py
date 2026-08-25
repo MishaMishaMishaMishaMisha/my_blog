@@ -1,12 +1,14 @@
 from uuid import UUID
 from datetime import datetime
 
+from source.models.user import UserModel
 from source.repositories.user import UserRepository
 from source.api.v1.schemas.token import Token
 from source.core.exceptions import (InvalidCredentialsException, 
-                                    InvalidTokenException)
+                                    InvalidTokenException,
+                                    UserNotFoundException)
 from source.core.logger import default_logger
-from source.core.types import TokenTypeEnum
+from source.core.types import TokenTypeEnum, RoleEnum
 from source.core.security import (verify_password, 
                                   create_access_token, 
                                   create_refresh_token, 
@@ -70,3 +72,38 @@ class AuthService:
             access_token=create_access_token(user.id, user.role),
             refresh_token=create_refresh_token(user.id), # Ротация рефреш токена
             token_type="bearer")
+        
+        
+    # для админки
+    async def authenticate_admin(self, 
+                                 login: str, 
+                                 password: str) -> UserModel | None:
+        
+        default_logger.debug("Authenication admin: Checking credentials")
+
+        if "@" in login:
+            user = await self.user_repo.get_user_by(email=login)
+        else:
+            user = await self.user_repo.get_user_by(username=login)
+        
+        if (not user) or (not user.is_active) or (user.role != RoleEnum.ADMIN):
+            default_logger.debug("Authenication admin: user dont have permission")
+            return None
+        
+        if not verify_password(password, user.password_hash):
+            default_logger.debug("Authenication admin: wrong password")
+            return None
+        
+        default_logger.debug("Authenication admin: success")
+        return user
+    
+    async def get_user_by_id(self, user_id: UUID) -> UserModel | None:
+
+        try:
+            default_logger.debug("Getting user by id: trying")
+            user = await self.user_repo.get_user(user_id) 
+            return user
+        
+        except UserNotFoundException:
+            default_logger.debug("Getting user by id: user not found")
+            return None

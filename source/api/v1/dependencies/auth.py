@@ -26,7 +26,7 @@ def get_auth_service(db_session: AsyncSession = Depends(get_db)) -> AuthService:
 # этот объект автоматически будет доставать токен из заголовка authtorization: bearer
 # параметр tokenUrl нужен только для удобной авторизации в swagger в документации
 # auto_error=False чтобы этот метод сам не вызывал HttpException если токена нету в заголовке
-oauth2_schem = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
+oauth2_schem = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 async def get_user_or_none_from_token(

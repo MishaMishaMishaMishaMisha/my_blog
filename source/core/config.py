@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     # отдельно считываем переменные
     MODE: str # dev или test
     LOG_LEVEL: str # info/debug/error...
+    ADMIN_SECRET_KEY: str
     
     db: DbSettings = DbSettings(_env_file=ENV_FILE_PATH)
     jwt: JwtSettings = JwtSettings(_env_file=ENV_FILE_PATH)

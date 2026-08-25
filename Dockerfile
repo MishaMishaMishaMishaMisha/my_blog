@@ -21,12 +21,15 @@ COPY pyproject.toml uv.lock ./
 # Устанавливаем зависимости (они будут установлены в системный python)
 # --no-install-project - не устанавливает сам код проекта, только зависимости
 # код проекта скопируется в следующей команде
+# --frozen означает не обновлять uv.lock
 RUN uv sync --frozen --no-install-project
 
 # Копируем исходный код бекенда и конфиг миграций
 COPY alembic.ini ./
 COPY source/ ./source/
 #COPY logs/ ./logs/
+
+RUN uv sync --frozen
 
 # команда при запуске по умолчанию
 # в docker-compose можно переопределить
